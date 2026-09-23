@@ -13,11 +13,13 @@ with tempfile.TemporaryDirectory() as temporary:
     cache.mkdir()
     config.write_text('volume=10\n', encoding="utf-8")
     result = subprocess.run([str(binary), "--config", str(config), "--media", str(folder / "media")],
-        input="s\nvolume=37\nvolume=999\nmode=blocks\nbind pause=k\nimport_mode=move\nimport_conflict=rename\nw\nq\n",
+        input="s\nvolume=37\nvolume=999\nmode=blocks\nbind pause=k\nimport_mode=move\nimport_conflict=rename\nvisualizer=orbit\nvisual_theme=ember\nvisual_gain=180\nvisual_smoothing=90\nvisual_bands=64\nvisual_bands=2\nw\nq\n",
         capture_output=True, encoding="utf-8", timeout=20)
     assert result.returncode == 0, result.stdout + result.stderr
     text = config.read_text(encoding="utf-8")
     assert 'volume = 37' in text and 'pause = ["k"]' in text and 'import_mode = "move"' in text
+    for setting in ('visualizer = "orbit"', 'visual_theme = "ember"', 'visual_gain = 180', 'visual_smoothing = 90', 'visual_bands = 64'):
+        assert setting in text, text
     assert config.with_suffix(".toml.bak").read_text() == 'volume=10\n'
     before = config.read_bytes()
     subprocess.run([str(binary), "--config", str(config)], input="s\nvolume=5\nq\nq\n",

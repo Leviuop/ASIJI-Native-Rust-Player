@@ -12,6 +12,7 @@ mod profile;
 mod render;
 mod settings_menu;
 mod timing;
+mod visualizer;
 
 use anyhow::{Context, Result, bail};
 use audio::Audio;
@@ -69,6 +70,16 @@ struct Args {
     width: usize,
     #[arg(long, value_enum, default_value_t = Mode::Ascii)]
     mode: Mode,
+    #[arg(long, value_enum, default_value_t = visualizer::Style::Bars)]
+    visualizer: visualizer::Style,
+    #[arg(long, value_enum, default_value_t = visualizer::Theme::Aurora)]
+    visual_theme: visualizer::Theme,
+    #[arg(long, default_value_t = 100, value_parser = clap::value_parser!(u16).range(10..=400))]
+    visual_gain: u16,
+    #[arg(long, default_value_t = 80, value_parser = clap::value_parser!(u8).range(0..=99))]
+    visual_smoothing: u8,
+    #[arg(long, default_value_t = 48, value_parser = clap::value_parser!(u16).range(8..=128))]
+    visual_bands: u16,
     #[arg(long)]
     mono: bool,
     #[arg(long)]
@@ -186,11 +197,39 @@ struct Clip<'a> {
     info: VideoInfo,
     spectrum: bool,
     fps: u32,
+    visual: visualizer::Options,
+}
+
+enum Playback {
+    Video(Video),
+    Visual(Box<visualizer::Visualizer>),
+}
+impl Playback {
+    fn current(&self) -> Option<&media::Frame> {
+        match self {
+            Self::Video(v) => v.current.as_ref(),
+            Self::Visual(v) => Some(&v.current),
+        }
+    }
+    fn advance(&mut self, position: f64) -> Result<bool> {
+        match self {
+            Self::Video(v) => v.advance(position),
+            Self::Visual(v) => v.advance(position),
+        }
+    }
 }
 
 impl Clip<'_> {
-    fn open(&mut self, size: (usize, usize), mode: Mode, position: f64) -> Result<Video> {
+    fn open(&mut self, size: (usize, usize), mode: Mode, position: f64) -> Result<Playback> {
         let pixels_high = size.1 * if mode == Mode::Blocks { 2 } else { 1 };
+        if self.spectrum {
+            let mut options = self.visual;
+            options.pixel_aspect = if mode == Mode::Blocks { 1.0 } else { 0.5 };
+            let mut visual =
+                visualizer::Visualizer::open(self.path, (size.0, pixels_high), self.fps, options)?;
+            visual.advance(position)?;
+            return Ok(Playback::Visual(Box::new(visual)));
+        }
         let mut video = Video::open(
             &self.tools,
             self.path,
@@ -220,7 +259,7 @@ impl Clip<'_> {
                 .first()
                 .with_context(|| format!("GPU: {error:#}; CPU"))?;
         }
-        Ok(video)
+        Ok(Playback::Video(video))
     }
 }
 
@@ -356,6 +395,14 @@ fn play(
         info,
         spectrum: track.video.is_none(),
         fps: effective_fps,
+        visual: visualizer::Options {
+            style: args.visualizer,
+            theme: args.visual_theme,
+            gain: args.visual_gain,
+            smoothing: args.visual_smoothing,
+            bands: args.visual_bands as usize,
+            pixel_aspect: 1.0,
+        },
     };
     let _terminal = Terminal::open()?;
     let _timer = timing::PlaybackTimer::start()?;
@@ -486,7 +533,7 @@ fn play(
         if metrics.decoder != clip.tools.decoder.label() {
             metrics.decoder = clip.tools.decoder.label().to_owned();
         }
-        if let Some(frame) = &video.current {
+        if let Some(frame) = video.current() {
             metrics.max_video_lag = metrics.max_video_lag.max(audio.position() - frame.time);
         }
         metrics.decode_wait += decode_start.elapsed();
@@ -507,6 +554,17 @@ fn play(
                 fps,
                 clip.tools.decoder,
             );
+            if clip.spectrum {
+                rows[0] = render::clip(
+                    &format!(
+                        " ASIJI / {:?} / {:?} / {}",
+                        args.visualizer,
+                        args.visual_theme,
+                        safe_text(&track.title)
+                    ),
+                    size.0.saturating_sub(1) as usize,
+                );
+            }
             if clip.fallback_notice && rows.len() > 1 {
                 rows[1] = render::clip(
                     " GPU unavailable; continued on CPU. See --doctor.",
@@ -514,7 +572,7 @@ fn play(
                 );
             }
             let output = screen.update(rows, size);
-            let frame = video.current.as_ref().context("Нет видеокадра")?;
+            let frame = video.current().context("Нет видеокадра")?;
             let origin = (
                 (size.0.saturating_sub(1) as usize).saturating_sub(dimensions.0) / 2,
                 2 + (size.1.saturating_sub(7) as usize).saturating_sub(dimensions.1) / 2,
@@ -550,10 +608,7 @@ fn play(
         let remaining = if audio.sink.is_paused() {
             Duration::from_millis(200)
         } else {
-            let next = video
-                .current
-                .as_ref()
-                .map_or(audio.position(), |frame| frame.time)
+            let next = video.current().map_or(audio.position(), |frame| frame.time)
                 + 1.0 / effective_fps as f64;
             Duration::from_secs_f64(
                 (next - audio.position()).clamp(0.001, 1.0 / effective_fps as f64),

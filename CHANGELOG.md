@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0
+
+- Native audio visualizers: spectrum bars, stereo wave and radial orbit.
+- Aurora, Ember and Ice themes; adjustable gain, smoothing and band count.
+- Stereo FFT analysis follows the audio clock, pause and seeking.
+- Visual settings available in TOML, CLI and the settings menu on both platforms.
+- Terminal playback checks for all visualizers and video; Linux CI audio through ALSA null.
+- Illustrated README, focused user guides and contribution templates.
+
 ## 0.7.1
 
 - Bounded audio cache with age cleanup, clear command and exclusive usage lock.

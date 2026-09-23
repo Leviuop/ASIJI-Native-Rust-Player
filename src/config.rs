@@ -20,6 +20,11 @@ struct Config {
     fps: Option<u32>,
     width: Option<usize>,
     mode: Option<String>,
+    visualizer: Option<String>,
+    visual_theme: Option<String>,
+    visual_gain: Option<u16>,
+    visual_smoothing: Option<u8>,
+    visual_bands: Option<u16>,
     color: Option<bool>,
     hwaccel: Option<String>,
     hwaccel_device: Option<String>,
@@ -125,6 +130,26 @@ fn apply(args: &mut Args, matches: &ArgMatches, path: &Path, contents: &str) -> 
             .is_none_or(|v| v == 0 || (40..=1000).contains(&v)),
         "width должен быть 0 или 40..1000"
     );
+    anyhow::ensure!(
+        config.visual_gain.is_none_or(|v| (10..=400).contains(&v)),
+        "visual_gain: 10..400"
+    );
+    anyhow::ensure!(
+        config.visual_smoothing.is_none_or(|v| v <= 99),
+        "visual_smoothing: 0..99"
+    );
+    anyhow::ensure!(
+        config.visual_bands.is_none_or(|v| (8..=128).contains(&v)),
+        "visual_bands: 8..128"
+    );
+    let visualizer = config
+        .visualizer
+        .map(|s| crate::visualizer::Style::from_str(&s, false).map_err(anyhow::Error::msg))
+        .transpose()?;
+    let visual_theme = config
+        .visual_theme
+        .map(|s| crate::visualizer::Theme::from_str(&s, false).map_err(anyhow::Error::msg))
+        .transpose()?;
     let mode = config
         .mode
         .map(|s| Mode::from_str(&s, false).map_err(anyhow::Error::msg))
@@ -175,6 +200,11 @@ fn apply(args: &mut Args, matches: &ArgMatches, path: &Path, contents: &str) -> 
             }
         });
     }
+    merge!(visualizer, visualizer);
+    merge!(visual_theme, visual_theme);
+    merge!(visual_gain, config.visual_gain);
+    merge!(visual_smoothing, config.visual_smoothing);
+    merge!(visual_bands, config.visual_bands);
     merge!(volume, config.volume);
     merge!(muted, config.muted);
     merge!(repeat, config.repeat);
@@ -241,6 +271,23 @@ pub fn effective(args: &Args) -> Result<String> {
         repeat: Some(args.repeat),
         fps: Some(args.fps),
         width: Some(args.width),
+        visualizer: Some(
+            args.visualizer
+                .to_possible_value()
+                .unwrap()
+                .get_name()
+                .into(),
+        ),
+        visual_theme: Some(
+            args.visual_theme
+                .to_possible_value()
+                .unwrap()
+                .get_name()
+                .into(),
+        ),
+        visual_gain: Some(args.visual_gain),
+        visual_smoothing: Some(args.visual_smoothing),
+        visual_bands: Some(args.visual_bands),
         mode: Some(args.mode.to_possible_value().unwrap().get_name().into()),
         color: Some(!args.mono),
         hwaccel: Some(args.hwaccel.to_possible_value().unwrap().get_name().into()),
@@ -276,14 +323,13 @@ pub fn edit(args: &mut Args, key: &str, value: &str) -> Result<()> {
         );
     } else {
         let parsed = match key {
-            "volume" | "fps" | "width" | "cache_max_mb" | "cache_max_days" => {
-                toml::Value::Integer(value.parse()?)
-            }
+            "volume" | "fps" | "width" | "cache_max_mb" | "cache_max_days" | "visual_gain"
+            | "visual_smoothing" | "visual_bands" => toml::Value::Integer(value.parse()?),
             "color" | "muted" | "repeat" | "hwaccel_fallback" => {
                 toml::Value::Boolean(value.parse()?)
             }
-            "mode" | "hwaccel" | "hwaccel_device" | "media" | "cache_dir" | "import_mode"
-            | "import_conflict" => toml::Value::String(value.into()),
+            "visualizer" | "visual_theme" | "mode" | "hwaccel" | "hwaccel_device" | "media"
+            | "cache_dir" | "import_mode" | "import_conflict" => toml::Value::String(value.into()),
             _ => bail!("Неизвестная настройка: {key}"),
         };
         if key == "hwaccel_device" && value.is_empty() {
@@ -338,6 +384,10 @@ mod tests {
         edit(&mut args, "bind pause", "k").unwrap();
         assert!(edit(&mut args, "bind pause", "q").is_err());
         edit(&mut args, "import_mode", "move").unwrap();
+        edit(&mut args, "visualizer", "orbit").unwrap();
+        edit(&mut args, "visual_theme", "ember").unwrap();
+        edit(&mut args, "visual_gain", "180").unwrap();
+        assert!(edit(&mut args, "visual_bands", "2").is_err());
         save(&args).unwrap();
         let original = fs::read(args.config.as_ref().unwrap()).unwrap();
         edit(&mut args, "volume", "10").unwrap();
@@ -350,6 +400,8 @@ mod tests {
         loaded.config = args.config.clone();
         load(&mut loaded, &matches).unwrap();
         assert_eq!(loaded.volume, 10);
+        assert_eq!(loaded.visualizer, crate::visualizer::Style::Orbit);
+        assert_eq!(loaded.visual_gain, 180);
         assert_eq!(loaded.import_mode, crate::import::ImportMode::Move);
         assert_eq!(loaded.bindings.hint("pause"), "k");
     }

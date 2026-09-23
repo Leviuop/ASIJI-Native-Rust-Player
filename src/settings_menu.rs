@@ -13,6 +13,17 @@ pub fn open(args: &mut Args) -> Result<bool> {
             "Кэш: {} МиБ / {} дней. Импорт: {:?}, конфликт: {:?}",
             draft.cache_max_mb, draft.cache_max_days, draft.import_mode, draft.import_conflict
         );
+        println!(
+            "Визуал: {:?} / {:?}; gain={} smoothing={} bands={}",
+            draft.visualizer,
+            draft.visual_theme,
+            draft.visual_gain,
+            draft.visual_smoothing,
+            draft.visual_bands
+        );
+        println!(
+            "visualizer=bars/wave/orbit, visual_theme=aurora/ember/ice, visual_gain=10..400, visual_smoothing=0..99, visual_bands=8..128"
+        );
         println!("Бинды: {:?}", draft.bindings.names);
         println!(
             "Введите настройка=значение, например volume=10, fps=60, mode=blocks, hwaccel=auto."

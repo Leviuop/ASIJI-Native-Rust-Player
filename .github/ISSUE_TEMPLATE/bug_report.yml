@@ -1,0 +1,31 @@
+name: Bug report
+description: Report a reproducible problem
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: ASIJI version and install method
+      placeholder: 0.8.0, Windows ZIP / Linux tar.gz / deb / source
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: OS, terminal and GPU
+      placeholder: Ubuntu 24.04, kitty, AMD / Windows 11, Windows Terminal, NVIDIA
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps, expected behavior and actual result
+      description: Include the launch command and relevant config fields. Remove private paths.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Paste --no-config --doctor output and errors. Do not upload private media.
+      render: text

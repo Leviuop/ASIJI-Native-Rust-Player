@@ -1,36 +1,37 @@
-Музыка и видео в терминале: ASCII и цветные полублоки, CPU/CUDA/D3D11VA/VAAPI,
-перемотка, пауза, громкость и повтор.
+## ASIJI 0.8.0
 
-### Скачать и запустить
+Аудио без видео теперь получает нативную визуализацию: **Bars, Wave или Orbit**.
+Три темы (Aurora, Ember, Ice), чувствительность, затухание и число полос
+настраиваются через меню **S**, TOML и CLI на Windows и Linux.
+Визуализация следует за звуком, паузой и перемоткой; дополнительный процесс
+FFmpeg для неё не нужен.
 
-- **Windows 10/11 x64:** распакуйте `windows-x86_64.zip`, запустите `start.bat`.
-  При первом запуске недостающий FFmpeg скачивается автоматически (~109 МБ).
-- **Linux x64:** установите FFmpeg и ALSA (`sudo apt install ffmpeg libasound2`),
-  распакуйте `linux-x86_64.tar.gz`, выполните `./start.sh` в терминале.
-  Сборка рассчитана на glibc 2.35+ (Ubuntu 22.04+, Debian 12+).
+### Скачать
 
-Положите свои клипы или пары `Название.mp3` + `Название.mp4` в `media/`.
+- **Windows 10/11 x64:** распакуйте ZIP и запустите `start.bat`. Недостающий
+  FFmpeg скачивается при первом запуске (~109 МБ, проверка SHA-256).
+- **Linux x64, glibc 2.35+:** установите FFmpeg и ALSA, распакуйте tar.gz,
+  запустите `./start.sh`.
+- **Debian 12+ / Ubuntu 22.04+:** `sudo apt install ./asiji_0.8.0_amd64.deb`, затем `asiji`.
+
 Rust и Python для готовых сборок не нужны. Громкость при запуске — 10%.
+Положите свои файлы в `media/` или перетащите их в меню треков.
+Для детального визуала: `--mode blocks --visualizer orbit --visual-theme ember`.
 
-Версия 0.7.1: S — настройки и бинды с сохранением, C — очистка кэша.
-Кэш автоматически ограничен размером и возрастом. При импорте доступны
-прогресс, Esc для отмены, copy/move и переименование конфликтующих пар файлов.
-Debian/Ubuntu: `sudo apt install ./asiji_0.7.1_amd64.deb`.
-Реальная Linux VAAPI-проверка на AMD/Intel пока не выполнена; в комплекте есть
-тестовый сценарий и инструкция в docs/HARDWARE.md.
-Создать файл: `bin\asiji.exe --init-config` (Windows), `./bin/asiji --init-config` (Linux).
-Проверить настройки: `--print-config`. Пример с комментариями: `config.example.toml`.
-Пользовательских медиафайлов в архивах нет.
+[Руководство](https://github.com/Leviuop/ASIJI-Native-Rust-Player/blob/main/docs/GUIDE.md) ·
+[Настройки визуала](https://github.com/Leviuop/ASIJI-Native-Rust-Player/blob/main/docs/VISUALIZER.md)
 
-Windows and Linux x64 builds. Unpack the archive, add your files to `media/`,
-then run `start.bat` or `./start.sh`. Windows downloads missing FFmpeg on first
-launch; Linux requires system FFmpeg and ALSA. See README for controls and options.
+Windows-воспроизведение проверено локально. Linux CI проверяет терминальные
+сеансы с ALSA null; физический VAAPI на AMD/Intel пока не проверен.
+Пользовательских аудио и видео в пакетах нет. Иллюстрация создана на синтетическом сигнале.
 
-### Third-party source code
+### Third-party components
 
-ASIJI includes unmodified Symphonia 0.5.5 components under MPL-2.0.
-Their complete source code is available under MPL-2.0 in the `sources/` directory
-inside each binary archive. Keep the included licenses and notices
-when redistributing. See [THIRD_PARTY.md](https://github.com/Leviuop/ASIJI-Native-Rust-Player/blob/main/THIRD_PARTY.md)
-for component details and original source links. FFmpeg is downloaded separately
-from its upstream distributor; no media files or FFmpeg binaries are bundled here.
+Windows and Linux x64 builds; prebuilt packages need neither Rust nor Python.
+Native audio visualizers, configurable through TOML, CLI and the settings menu.
+
+Each distribution includes dependency notices in `licenses/` and complete
+unmodified Symphonia 0.5.5 source archives under MPL-2.0 in `sources/`
+(`/usr/share/doc/asiji/` for DEB). Keep these when redistributing.
+FFmpeg is installed separately. See
+[THIRD_PARTY.md](https://github.com/Leviuop/ASIJI-Native-Rust-Player/blob/main/THIRD_PARTY.md).

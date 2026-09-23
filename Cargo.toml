@@ -1,6 +1,6 @@
 [package]
 name = "asiji"
-version = "0.7.1"
+version = "0.8.0"
 edition = "2024"
 rust-version = "1.85"
 description = "ASCII and half-block music video player for the terminal"
@@ -10,6 +10,8 @@ license = "MIT"
 [dependencies]
 anyhow = "1"
 fs2 = "0.4"
+hound = "3.5"
+rustfft = "6"
 clap = { version = "4", features = ["derive"] }
 crossterm = "0.29"
 rodio = { version = "0.21.1", default-features = false, features = ["playback", "wav"] }

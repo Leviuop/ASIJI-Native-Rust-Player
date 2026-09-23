@@ -17,7 +17,7 @@ docs = staging / "usr/share/doc/asiji"
 docs.mkdir(parents=True)
 for name in ("README.md", "CHANGELOG.md", "LICENSE", "THIRD_PARTY.md", "config.example.toml"):
     shutil.copy2(portable / name, docs / name)
-for name in ("licenses", "sources"):
+for name in ("licenses", "sources", "docs"):
     shutil.copytree(portable / name, docs / name)
 shutil.copy2(root / "docs/HARDWARE.md", docs / "HARDWARE.md")
 shutil.copy2(root / "scripts/test-linux-gpu.sh", docs / "test-linux-gpu.sh")

@@ -1,7 +1,7 @@
 # Third-party components
 
 ASIJI uses Rust libraries listed in `Cargo.lock`, including rodio, crossterm,
-clap and their dependencies. Binary archives include their available license
+clap, hound, RustFFT and their dependencies. Binary archives include their available license
 and notice files under `licenses/`.
 `licenses/dasp_sample-LICENSE-MIT.txt` supplies the upstream RustAudio notice
 omitted from the dasp_sample crate archive; it is taken from the crate's
@@ -13,9 +13,8 @@ The audio decoder includes unmodified Symphonia 0.5.5 components, licensed
 under the Mozilla Public License 2.0. Their source code remains available
 under MPL-2.0; ASIJI's MIT license does not replace those terms.
 
-The complete original source archives are provided in the release asset
-`asiji-0.3.1-third-party-sources.zip`, alongside the binary downloads:
-[download sources](https://github.com/Leviuop/ASIJI-Native-Rust-Player/releases/download/v0.3.1/asiji-0.3.1-third-party-sources.zip).
+The complete original source archives are included in `sources/` inside each
+binary distribution (under `/usr/share/doc/asiji/` for the Debian package).
 Each `.crate` is a standard gzip-compressed tar archive. Original sources:
 
 - [symphonia 0.5.5](https://crates.io/api/v1/crates/symphonia/0.5.5/download)

@@ -32,6 +32,14 @@ with tempfile.TemporaryDirectory() as temporary:
     assert "volume = 10" in run("--volume", "10", "--print-config")
     assert "color = true" in run("--color", "--print-config")
     assert "volume = 10" in run("--no-config", "--print-config")
+    default.write_text('visualizer="orbit"\nvisual_theme="ember"\nvisual_gain=180\nvisual_smoothing=90\nvisual_bands=64\n', encoding="utf-8")
+    effective = run("--print-config")
+    assert 'visualizer = "orbit"' in effective and 'visual_gain = 180' in effective
+    overrides = run("--visualizer", "bars", "--visual-theme", "ice", "--visual-gain", "100", "--visual-smoothing", "80", "--visual-bands", "48", "--print-config")
+    for field in ('visualizer = "bars"', 'visual_theme = "ice"', 'visual_gain = 100', 'visual_smoothing = 80', 'visual_bands = 48'):
+        assert field in overrides, overrides
+    for option, value in (("--visualizer", "unknown"), ("--visual-theme", "unknown"), ("--visual-gain", "401"), ("--visual-smoothing", "100"), ("--visual-bands", "7")):
+        run(option, value, "--print-config", success=False)
     explicit = folder / "portable.toml"
     run("--config", str(explicit), "--print-config", success=False)
     run("--config", str(explicit), "--init-config")

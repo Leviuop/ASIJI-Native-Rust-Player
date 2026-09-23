@@ -13,6 +13,11 @@ repeat = false
 fps = 30             # 10..60; also capped by the source video
 width = 0            # 0 = fit terminal, otherwise 40..1000 columns
 mode = "ascii"       # "ascii" or "blocks" (HD half-blocks)
+visualizer = "bars"  # Audio without video: "bars", "wave", "orbit"
+visual_theme = "aurora" # "aurora", "ember", "ice"
+visual_gain = 100    # Sensitivity, 10..400 percent; independent of playback volume
+visual_smoothing = 80 # Spectrum release, 0..99; higher = slower decay
+visual_bands = 48    # Spectrum bands, 8..128
 color = true
 hwaccel = "auto"     # "auto", "cpu", "cuda", "d3d11va" (Windows), "vaapi" (Linux)
 hwaccel_fallback = true # Retry on CPU if GPU decoding fails

@@ -61,6 +61,23 @@ fn real_decode_seek_loop_and_cache() -> Result<()> {
         wav
     );
     assert!(wav.metadata()?.modified()? >= modified);
+    for style in [
+        crate::visualizer::Style::Bars,
+        crate::visualizer::Style::Wave,
+        crate::visualizer::Style::Orbit,
+    ] {
+        let mut visual = crate::visualizer::Visualizer::open(
+            &wav,
+            (80, 44),
+            30,
+            crate::visualizer::Options {
+                style,
+                ..Default::default()
+            },
+        )?;
+        visual.advance(0.5)?;
+        assert!(visual.current.rgb.iter().any(|v| *v > 0));
+    }
     let frame_at = |position| -> Result<Vec<u8>> {
         let mut video = Video::open(&tools, &path, info, (80, 44), 30, position, false)?;
         video.first()?;
@@ -113,12 +130,13 @@ fn unavailable_gpu_falls_back_unless_strict() -> Result<()> {
         info,
         spectrum: false,
         fps: 24,
+        visual: crate::visualizer::Options::default(),
     };
     clip.tools.decoder = Decoder::Cuda;
     let recovered = clip.open((80, 22), Mode::Blocks, 0.75)?;
     assert_eq!(clip.tools.decoder, Decoder::Cpu);
     assert!(clip.fallback_notice);
-    assert_eq!(recovered.current.as_ref().unwrap().time, 0.75);
+    assert_eq!(recovered.current().unwrap().time, 0.75);
     drop(recovered);
     tools.fallback = false;
     assert!(
