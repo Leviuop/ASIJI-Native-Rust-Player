@@ -205,8 +205,19 @@ impl Tools {
     }
 
     pub fn probe(&self, source: &Path) -> Result<VideoInfo> {
-        let output = command(&self.ffprobe).args(["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,duration,avg_frame_rate,sample_aspect_ratio:stream_side_data=rotation:format=duration", "-of", "json"])
-            .arg(source).output()?;
+        let output = command(&self.ffprobe)
+            .args([
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_streams",
+                "-show_format",
+                "-of",
+                "json",
+            ])
+            .arg(source)
+            .output()?;
         if !output.status.success() {
             bail!(
                 "Не удалось прочитать видео {}: {}",

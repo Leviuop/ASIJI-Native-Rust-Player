@@ -18,7 +18,10 @@ if ((Test-Decoder 'ffmpeg') -and (Test-Decoder 'ffprobe')) { exit 0 }
 
 $version = '9.0.2'
 $expectedHash = '60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba'
-$url = "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-$version-essentials_build.zip"
+$urls = @(
+    "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-$version-essentials_build.zip",
+    "https://github.com/GyanD/codexffmpeg/releases/download/$version/ffmpeg-$version-essentials_build.zip"
+)
 $tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
 $work = Join-Path $tempRoot ('asiji-ffmpeg-' + [Guid]::NewGuid().ToString('N'))
 try {
@@ -26,7 +29,22 @@ try {
     $archive = Join-Path $work 'ffmpeg.zip'
     Write-Host "Downloading FFmpeg $version from gyan.dev (first launch only)..."
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $archive
+    $downloaded = $false
+    foreach ($url in $urls) {
+        try {
+            if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
+                & curl.exe --fail --location --silent --show-error --connect-timeout 15 --max-time 180 --output $archive $url
+                if ($LASTEXITCODE -ne 0) { throw "Download failed (curl: $LASTEXITCODE)." }
+            } else {
+                Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $archive -TimeoutSec 180
+            }
+            $downloaded = $true
+            break
+        } catch {
+            Write-Host "Download unavailable: $_"
+        }
+    }
+    if (-not $downloaded) { throw 'Neither download server was available.' }
     if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne $expectedHash) {
         throw 'FFmpeg checksum mismatch. Nothing was installed.'
     }

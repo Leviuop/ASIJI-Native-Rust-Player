@@ -6,6 +6,7 @@
 - Keep playback errors visible in the refreshed menu.
 - Add Windows and Linux release archives and CI checks.
 - Install missing Windows FFmpeg binaries on first launch with SHA-256 verification.
+- Support the FFprobe version shipped with Ubuntu 22.04.
 
 ## 0.3.0
 
