@@ -24,7 +24,7 @@ staging.mkdir(parents=True, exist_ok=False)
 (staging / "media").mkdir()
 binary = "asiji.exe" if windows else "asiji"
 shutil.copy2(Path(metadata["target_directory"]) / "release" / binary, staging / "bin" / binary)
-for filename in ("README.md", "LICENSE", "THIRD_PARTY.md", "CHANGELOG.md"):
+for filename in ("README.md", "LICENSE", "THIRD_PARTY.md", "CHANGELOG.md", "config.example.toml"):
     shutil.copy2(root / filename, staging / filename)
 shutil.copy2(root / "media" / "README.txt", staging / "media" / "README.txt")
 if windows:

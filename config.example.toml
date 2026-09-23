@@ -1,0 +1,37 @@
+# ASIJI — user settings. Command-line options override these values.
+# Copy with: asiji --init-config
+# Inspect active settings with: asiji --print-config
+
+volume = 10          # 0..100 percent
+muted = false
+repeat = false
+fps = 30             # 10..60; also capped by the source video
+width = 0            # 0 = fit terminal, otherwise 40..1000 columns
+mode = "ascii"       # "ascii" or "blocks" (HD half-blocks)
+color = true
+hwaccel = "auto"     # "auto", "cpu", "cuda", "d3d11va" (Windows only)
+
+# Omit media to use the media folder beside the player.
+# Relative paths are relative to this config file, not the working directory.
+# Use forward slashes on Windows: media = "D:/Music"
+# media = "/home/you/Music"
+
+# Playback shortcuts. An entry replaces all defaults for that action.
+# [] disables an action. Ctrl+C always exits, even when quit is empty.
+# Named keys: space, enter, esc, tab, backspace, arrows, home, end,
+# pageup, pagedown, insert, delete, f1..f12. Modifiers: ctrl+, alt+, shift+.
+# Terminal/desktop shortcuts may intercept some combinations.
+[bindings]
+pause = ["space"]
+seek_backward = ["left", "a"]
+seek_forward = ["right", "d"]
+volume_up = ["up", "+", "="]
+volume_down = ["down", "-"]
+mute = ["m"]
+color = ["c"]
+repeat = ["r"]
+mode = ["h"]
+next = ["n"]
+previous = ["p"]
+menu = ["q", "esc"]
+quit = ["x", "ctrl+c"]

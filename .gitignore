@@ -13,3 +13,4 @@ dist/
 legacy-python.zip
 SPEC.md
 MIGRATION.md
+/config.toml

@@ -1,5 +1,7 @@
 mod audio;
+mod bindings;
 mod canvas;
+mod config;
 #[cfg(test)]
 mod integration_tests;
 mod media;
@@ -9,10 +11,11 @@ mod timing;
 
 use anyhow::{Context, Result, bail};
 use audio::Audio;
-use clap::Parser;
+use bindings::{Bindings, Control};
+use clap::{CommandFactory, FromArgMatches, Parser};
 use crossterm::{
     cursor,
-    event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
+    event::{self, Event, KeyEventKind},
     execute,
     terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -28,6 +31,28 @@ use std::{
 #[derive(Parser)]
 #[command(version, about = "ASIJI — нативный ASCII/HD музыкальный плеер")]
 struct Args {
+    #[arg(skip)]
+    bindings: Bindings,
+    #[arg(long, conflicts_with = "no_config", help = "Путь к config.toml")]
+    config: Option<PathBuf>,
+    #[arg(long, help = "Не читать файл настроек")]
+    no_config: bool,
+    #[arg(long, conflicts_with_all = ["no_config", "print_config"], help = "Создать пример конфига и выйти")]
+    init_config: bool,
+    #[arg(long, help = "Показать итоговые настройки и выйти")]
+    print_config: bool,
+    #[arg(long, default_value_t = 10, value_parser = clap::value_parser!(u8).range(0..=100), help = "Громкость 0..100")]
+    volume: u8,
+    #[arg(long, default_value_t = false, action = clap::ArgAction::Set)]
+    muted: bool,
+    #[arg(long, default_value_t = false, action = clap::ArgAction::Set)]
+    repeat: bool,
+    #[arg(
+        long,
+        conflicts_with = "mono",
+        help = "Цветной вывод, включая отмену color=false из конфига"
+    )]
+    color: bool,
     #[arg(long)]
     media: Option<PathBuf>,
     #[arg(long, default_value_t = 30, value_parser = clap::value_parser!(u32).range(10..=60))]
@@ -70,6 +95,7 @@ struct Args {
 }
 
 struct Settings {
+    bindings: Bindings,
     volume: f32,
     muted: bool,
     color: bool,
@@ -205,11 +231,18 @@ fn screen_rows(
         "-".repeat(bar - filled)
     ));
     rows.push(render::clip(
-        " Space: pause | Left/Right or A/D: seek 5s | Up/Down or +/-: volume",
+        &format!(
+            " {}: pause | {}/{}: seek 5s | {}/{}: volume",
+            settings.bindings.hint("pause"),
+            settings.bindings.hint("seek_backward"),
+            settings.bindings.hint("seek_forward"),
+            settings.bindings.hint("volume_up"),
+            settings.bindings.hint("volume_down")
+        ),
         width,
     ));
     rows.push(render::clip(
-        " H: HD/ASCII | N/P: track | M: mute | C: color | R: repeat | Q: menu | X: exit",
+        &format!(" {}: HD/ASCII | {}/{}: track | {}: mute | {}: color | {}: repeat | {}: menu | {}: exit", settings.bindings.hint("mode"), settings.bindings.hint("next"), settings.bindings.hint("previous"), settings.bindings.hint("mute"), settings.bindings.hint("color"), settings.bindings.hint("repeat"), settings.bindings.hint("menu"), settings.bindings.hint("quit")),
         width,
     ));
     rows.truncate(size.1.saturating_sub(1) as usize);
@@ -293,41 +326,31 @@ fn play(
         while event::poll(Duration::ZERO)? {
             match event::read()? {
                 Event::Key(key) if key.kind != KeyEventKind::Release => {
-                    let code = match key.code {
-                        KeyCode::Char(c) => KeyCode::Char(c.to_ascii_lowercase()),
-                        other => other,
+                    let Some(control) = settings.bindings.action(key) else {
+                        continue;
                     };
-                    if code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
-                        return Ok(Action::Exit);
-                    }
-                    match code {
-                        KeyCode::Char('x') => return Ok(Action::Exit),
-                        KeyCode::Char('q') | KeyCode::Esc => return Ok(Action::Menu),
-                        KeyCode::Char('n') => return Ok(Action::Next),
-                        KeyCode::Char('p') => return Ok(Action::Previous),
-                        KeyCode::Char(' ') => {
+                    match control {
+                        Control::Quit => return Ok(Action::Exit),
+                        Control::Menu => return Ok(Action::Menu),
+                        Control::Next => return Ok(Action::Next),
+                        Control::Previous => return Ok(Action::Previous),
+                        Control::Pause => {
                             if audio.sink.is_paused() {
                                 audio.sink.play();
                             } else {
                                 audio.sink.pause();
                             }
                         }
-                        KeyCode::Left | KeyCode::Char('a') => {
-                            restart = Some((audio.position() - 5.0).max(0.0))
-                        }
-                        KeyCode::Right | KeyCode::Char('d') => {
+                        Control::Backward => restart = Some((audio.position() - 5.0).max(0.0)),
+                        Control::Forward => {
                             restart = Some((audio.position() + 5.0).min(audio.duration))
                         }
-                        KeyCode::Up | KeyCode::Char('+' | '=') => {
-                            settings.volume = (settings.volume + 0.05).min(1.0)
-                        }
-                        KeyCode::Down | KeyCode::Char('-') => {
-                            settings.volume = (settings.volume - 0.05).max(0.0)
-                        }
-                        KeyCode::Char('m') => settings.muted = !settings.muted,
-                        KeyCode::Char('c') => settings.color = !settings.color,
-                        KeyCode::Char('r') => settings.repeat = !settings.repeat,
-                        KeyCode::Char('h') => {
+                        Control::VolumeUp => settings.volume = (settings.volume + 0.05).min(1.0),
+                        Control::VolumeDown => settings.volume = (settings.volume - 0.05).max(0.0),
+                        Control::Mute => settings.muted = !settings.muted,
+                        Control::Color => settings.color = !settings.color,
+                        Control::Repeat => settings.repeat = !settings.repeat,
+                        Control::Mode => {
                             settings.mode = if settings.mode == Mode::Ascii {
                                 Mode::Blocks
                             } else {
@@ -335,7 +358,6 @@ fn play(
                             };
                             restart = Some(audio.position());
                         }
-                        _ => {}
                     }
                     audio
                         .sink
@@ -553,7 +575,18 @@ fn benchmark_video(args: &Args, path: &Path) -> Result<()> {
 }
 
 fn run() -> Result<()> {
-    let args = Args::parse();
+    let matches = Args::command().get_matches();
+    let mut args = Args::from_arg_matches(&matches)?;
+    if args.init_config {
+        let path = config::initialize(args.config.as_deref())?;
+        println!("Создан конфиг: {}", path.display());
+        return Ok(());
+    }
+    config::load(&mut args, &matches)?;
+    if args.print_config {
+        print!("{}", config::effective(&args)?);
+        return Ok(());
+    }
     if let Some(path) = &args.benchmark_video {
         return benchmark_video(&args, path);
     }
@@ -586,10 +619,11 @@ fn run() -> Result<()> {
         return Ok(());
     }
     let mut settings = Settings {
-        volume: 0.10,
-        muted: false,
+        bindings: args.bindings.clone(),
+        volume: args.volume as f32 / 100.0,
+        muted: args.muted,
         color: !args.mono,
-        repeat: false,
+        repeat: args.repeat,
         mode: args.mode,
     };
     let mut index = args.play.map(|n| n.saturating_sub(1));

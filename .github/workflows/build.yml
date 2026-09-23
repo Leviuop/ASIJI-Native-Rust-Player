@@ -41,6 +41,8 @@ jobs:
         run: cargo test --locked real_decode_seek_loop_and_cache -- --ignored
       - name: Release build
         run: cargo build --release --locked
+      - name: Configuration CLI
+        run: python scripts/test-config.py
       - name: Linux launcher and terminal menu
         if: runner.os == 'Linux'
         run: |
