@@ -38,13 +38,19 @@ else:
 
 notices = staging / "licenses"
 notices.mkdir()
+shutil.copytree(root / "licenses", notices, dirs_exist_ok=True)
 index = []
+sources = staging / "sources"
+sources.mkdir()
 for dependency in metadata["packages"]:
     if dependency["name"] == "asiji":
         continue
     label = f"{dependency['name']}-{dependency['version']}"
     index.append(f"{label}: {dependency.get('license') or 'see included license'}")
     folder = Path(dependency["manifest_path"]).parent
+    if "MPL-2.0" in (dependency.get("license") or ""):
+        original = folder.parents[2] / "cache" / folder.parent.name / f"{label}.crate"
+        shutil.copy2(original, sources / original.name)
     for source in folder.iterdir():
         if source.name.upper().startswith(("LICENSE", "LICENCE", "COPYING", "NOTICE")):
             destination = notices / label / source.name

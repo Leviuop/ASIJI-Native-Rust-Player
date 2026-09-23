@@ -18,3 +18,12 @@ Rust и Python для готовых сборок не нужны. Громко�
 Windows and Linux x64 builds. Unpack the archive, add your files to `media/`,
 then run `start.bat` or `./start.sh`. Windows downloads missing FFmpeg on first
 launch; Linux requires system FFmpeg and ALSA. See README for controls and options.
+
+### Third-party source code
+
+ASIJI includes unmodified Symphonia 0.5.5 components under MPL-2.0.
+Their complete source code is available under MPL-2.0 in
+`asiji-0.3.1-third-party-sources.zip` below. Keep the included licenses and notices
+when redistributing. See [THIRD_PARTY.md](https://github.com/Leviuop/ASIJI-Native-Rust-Player/blob/main/THIRD_PARTY.md)
+for component details and original source links. FFmpeg is downloaded separately
+from its upstream distributor; no media files or FFmpeg binaries are bundled here.
