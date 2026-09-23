@@ -3,7 +3,7 @@
 **Музыка и видео символами прямо в терминале.**
 
 [![Build](https://github.com/Leviuop/ASIJI-Native-Rust-Player/actions/workflows/build.yml/badge.svg)](https://github.com/Leviuop/ASIJI-Native-Rust-Player/actions/workflows/build.yml)
-[![Release](https://img.shields.io/github/v/release/Leviuop/ASIJI-Native-Rust-Player)](https://github.com/Leviuop/ASIJI-Native-Rust-Player/releases/latest)
+[![Download](https://img.shields.io/badge/Download-Releases-25eebf)](https://github.com/Leviuop/ASIJI-Native-Rust-Player/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ![ASIJI — Bars, Wave, Orbit](docs/assets/visualizer.gif)

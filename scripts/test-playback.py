@@ -1,4 +1,5 @@
 """Real terminal playback checks; Linux CI uses ALSA null, Windows needs an output device."""
+import codecs
 import json
 import os
 from pathlib import Path
@@ -31,12 +32,13 @@ class Terminal:
         threading.Thread(target=self.reader, daemon=True).start()
 
     def reader(self):
+        decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
         try:
             while True:
-                part = self.process.read(65536) if windows else os.read(self.fd, 65536).decode("utf-8", errors="replace")
-                if not part:
+                raw = self.process.read(65536) if windows else os.read(self.fd, 65536)
+                if not raw:
                     return
-                self.chunks.put(part)
+                self.chunks.put(raw if windows else decoder.decode(raw))
         except (EOFError, OSError):
             pass
 
