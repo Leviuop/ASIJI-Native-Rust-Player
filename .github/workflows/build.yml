@@ -58,6 +58,7 @@ jobs:
         run: |
           bash -n start.sh build.sh install.sh scripts/test-linux-gpu.sh
           python3 scripts/test-menu.py
+          python3 scripts/test-settings-terminal.py
       - name: Linux playback and visualizers
         if: runner.os == 'Linux'
         env:

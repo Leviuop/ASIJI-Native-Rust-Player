@@ -25,6 +25,7 @@ struct Config {
     visual_gain: Option<u16>,
     visual_smoothing: Option<u8>,
     visual_bands: Option<u16>,
+    wallpaper: Option<bool>,
     color: Option<bool>,
     hwaccel: Option<String>,
     hwaccel_device: Option<String>,
@@ -205,6 +206,7 @@ fn apply(args: &mut Args, matches: &ArgMatches, path: &Path, contents: &str) -> 
     merge!(visual_gain, config.visual_gain);
     merge!(visual_smoothing, config.visual_smoothing);
     merge!(visual_bands, config.visual_bands);
+    merge!(wallpaper, config.wallpaper);
     merge!(volume, config.volume);
     merge!(muted, config.muted);
     merge!(repeat, config.repeat);
@@ -288,6 +290,7 @@ pub fn effective(args: &Args) -> Result<String> {
         visual_gain: Some(args.visual_gain),
         visual_smoothing: Some(args.visual_smoothing),
         visual_bands: Some(args.visual_bands),
+        wallpaper: Some(args.wallpaper),
         mode: Some(args.mode.to_possible_value().unwrap().get_name().into()),
         color: Some(!args.mono),
         hwaccel: Some(args.hwaccel.to_possible_value().unwrap().get_name().into()),
@@ -325,7 +328,7 @@ pub fn edit(args: &mut Args, key: &str, value: &str) -> Result<()> {
         let parsed = match key {
             "volume" | "fps" | "width" | "cache_max_mb" | "cache_max_days" | "visual_gain"
             | "visual_smoothing" | "visual_bands" => toml::Value::Integer(value.parse()?),
-            "color" | "muted" | "repeat" | "hwaccel_fallback" => {
+            "color" | "muted" | "repeat" | "hwaccel_fallback" | "wallpaper" => {
                 toml::Value::Boolean(value.parse()?)
             }
             "visualizer" | "visual_theme" | "mode" | "hwaccel" | "hwaccel_device" | "media"

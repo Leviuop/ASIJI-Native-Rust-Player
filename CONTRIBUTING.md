@@ -19,6 +19,7 @@ cargo build --release --locked
 python scripts/test-config.py
 python scripts/test-import.py
 python scripts/test-settings.py
+python scripts/test-settings-terminal.py
 python scripts/test-doctor.py
 ```
 
@@ -33,6 +34,16 @@ On Windows the terminal test needs `pywinpty`. For headless Linux, set
 `ALSA_CONFIG_PATH` to the absolute path of `tests/alsa-null.conf`.
 The null output verifies playback logic, not sound quality or physical devices.
 See [hardware validation](docs/HARDWARE.md) for GPU checks.
+
+Wallpaper checks require an interactive Windows Explorer desktop (not headless CI):
+
+```sh
+cargo test --locked desktop_buffer_renders_and_window_is_removed -- --ignored
+python scripts/test-wallpaper.py
+```
+
+Close other ASIJI wallpaper sessions first. The tests briefly create their own
+desktop window and use synthetic audio at zero volume.
 
 ## Pull requests
 

@@ -1,6 +1,6 @@
 [package]
 name = "asiji"
-version = "0.8.1"
+version = "0.9.0"
 edition = "2024"
 rust-version = "1.85"
 description = "ASCII and half-block music video player for the terminal"
@@ -22,6 +22,9 @@ sha2 = "0.10"
 tempfile = "3"
 unicode-normalization = "0.1"
 unicode-width = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging", "Win32_UI_HiDpi"] }
 
 [profile.release]
 lto = "thin"
