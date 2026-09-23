@@ -94,6 +94,41 @@ fn real_decode_seek_loop_and_cache() -> Result<()> {
     Ok(())
 }
 
+#[test]
+#[ignore = "requires FFmpeg/FFprobe binaries"]
+fn unavailable_gpu_falls_back_unless_strict() -> Result<()> {
+    use crate::media::Decoder;
+    let (_folder, mut tools, path) = fixture()?;
+    let info = tools.probe(&path)?;
+    tools.device = Some("999999".into());
+    let selected = tools.select_decoder(&path, info, (80, 44), 24, Decoder::Cuda)?;
+    assert_eq!(selected.decoder, Decoder::Cpu);
+    let mut video = Video::open(&selected, &path, info, (80, 44), 24, 0.0, false)?;
+    video.first()?;
+    assert_eq!(video.current.as_ref().unwrap().rgb.len(), 80 * 44 * 3);
+    let mut clip = crate::Clip {
+        tools: tools.clone(),
+        fallback_notice: false,
+        path: &path,
+        info,
+        spectrum: false,
+        fps: 24,
+    };
+    clip.tools.decoder = Decoder::Cuda;
+    let recovered = clip.open((80, 22), Mode::Blocks, 0.75)?;
+    assert_eq!(clip.tools.decoder, Decoder::Cpu);
+    assert!(clip.fallback_notice);
+    assert_eq!(recovered.current.as_ref().unwrap().time, 0.75);
+    drop(recovered);
+    tools.fallback = false;
+    assert!(
+        tools
+            .select_decoder(&path, info, (80, 44), 24, Decoder::Cuda)
+            .is_err()
+    );
+    Ok(())
+}
+
 fn wait_until(condition: impl Fn() -> bool) {
     let deadline = Instant::now() + Duration::from_secs(4);
     while !condition() && Instant::now() < deadline {

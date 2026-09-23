@@ -20,6 +20,7 @@ pub enum Decoder {
     Cpu,
     Cuda,
     D3d11va,
+    Vaapi,
 }
 
 impl Decoder {
@@ -29,6 +30,7 @@ impl Decoder {
             Self::Cpu => "CPU",
             Self::Cuda => "CUDA",
             Self::D3d11va => "D3D11VA",
+            Self::Vaapi => "VAAPI",
         }
     }
 }
@@ -117,6 +119,8 @@ pub struct Tools {
     pub ffmpeg: PathBuf,
     pub ffprobe: PathBuf,
     pub decoder: Decoder,
+    pub device: Option<String>,
+    pub fallback: bool,
 }
 
 impl Tools {
@@ -141,6 +145,8 @@ impl Tools {
             ffmpeg: find("ffmpeg"),
             ffprobe: find("ffprobe"),
             decoder: Decoder::Cpu,
+            device: None,
+            fallback: true,
         }
     }
 
@@ -282,6 +288,24 @@ impl Tools {
         let mut selected = self.clone();
         if requested != Decoder::Auto {
             selected.decoder = requested;
+            if requested != Decoder::Cpu {
+                let result = (|| -> Result<()> {
+                    let mut video = Video::open(&selected, path, info, size, fps, 0.0, false)?;
+                    video.first()
+                })();
+                if let Err(error) = result {
+                    if !self.fallback {
+                        return Err(error);
+                    }
+                    eprintln!(
+                        "{} недоступен: {error:#}. Переход на CPU.",
+                        requested.label()
+                    );
+                    selected.decoder = Decoder::Cpu;
+                    let mut video = Video::open(&selected, path, info, size, fps, 0.0, false)?;
+                    video.first()?;
+                }
+            }
             return Ok(selected);
         }
         println!("Подбор декодера CPU/GPU для этого видео…");
@@ -289,7 +313,7 @@ impl Tools {
         let candidates = if cfg!(windows) {
             vec![Decoder::Cpu, Decoder::Cuda, Decoder::D3d11va]
         } else {
-            vec![Decoder::Cpu, Decoder::Cuda]
+            vec![Decoder::Cpu, Decoder::Cuda, Decoder::Vaapi]
         };
         let mut errors = Vec::new();
         for decoder in candidates {
@@ -316,7 +340,7 @@ impl Tools {
                     }
                 }
                 Err(error) => {
-                    println!("  {}: недоступен", decoder.label());
+                    println!("  {}: недоступен — {error:#}", decoder.label());
                     errors.push(format!("{}: {error}", decoder.label()));
                 }
             }
@@ -365,14 +389,16 @@ impl Video {
         let error_file = tempfile::NamedTempFile::new()?;
         let mut cmd = command(&tools.ffmpeg);
         if !spectrum {
-            match tools.decoder {
-                Decoder::Cuda => {
-                    cmd.args(["-hwaccel", "cuda"]);
+            if let Some(name) = match tools.decoder {
+                Decoder::Cuda => Some("cuda"),
+                Decoder::D3d11va => Some("d3d11va"),
+                Decoder::Vaapi => Some("vaapi"),
+                _ => None,
+            } {
+                cmd.args(["-hwaccel", name]);
+                if let Some(device) = &tools.device {
+                    cmd.args(["-hwaccel_device", device]);
                 }
-                Decoder::D3d11va => {
-                    cmd.args(["-hwaccel", "d3d11va"]);
-                }
-                _ => {}
             }
         }
         cmd.args([

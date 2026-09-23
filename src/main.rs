@@ -2,6 +2,7 @@ mod audio;
 mod bindings;
 mod canvas;
 mod config;
+mod doctor;
 #[cfg(test)]
 mod integration_tests;
 mod media;
@@ -69,6 +70,21 @@ struct Args {
     mono: bool,
     #[arg(long)]
     check: bool,
+    #[arg(long, help = "Проверить FFmpeg и GPU без запуска плеера")]
+    doctor: bool,
+    #[arg(
+        long,
+        requires = "doctor",
+        help = "Проверить декодирование конкретного видео"
+    )]
+    doctor_video: Option<PathBuf>,
+    #[arg(
+        long,
+        help = "GPU: индекс для CUDA/D3D11VA или /dev/dri/renderD128 для VAAPI"
+    )]
+    hwaccel_device: Option<String>,
+    #[arg(long, default_value_t = true, action = clap::ArgAction::Set, help = "Переход на CPU при ошибке GPU")]
+    hwaccel_fallback: bool,
     #[arg(long, help = "Замер ANSI-рендера из файла RGB24 (без терминала)")]
     benchmark: Option<PathBuf>,
     #[arg(long, default_value_t = 140)]
@@ -149,7 +165,8 @@ fn geometry(info: VideoInfo, size: (u16, u16), limit: usize) -> (usize, usize) {
 }
 
 struct Clip<'a> {
-    tools: &'a Tools,
+    tools: Tools,
+    fallback_notice: bool,
     path: &'a Path,
     info: VideoInfo,
     spectrum: bool,
@@ -157,10 +174,10 @@ struct Clip<'a> {
 }
 
 impl Clip<'_> {
-    fn open(&self, size: (usize, usize), mode: Mode, position: f64) -> Result<Video> {
+    fn open(&mut self, size: (usize, usize), mode: Mode, position: f64) -> Result<Video> {
         let pixels_high = size.1 * if mode == Mode::Blocks { 2 } else { 1 };
         let mut video = Video::open(
-            self.tools,
+            &self.tools,
             self.path,
             self.info,
             (size.0, pixels_high),
@@ -168,7 +185,26 @@ impl Clip<'_> {
             position,
             self.spectrum,
         )?;
-        video.first()?;
+        if let Err(error) = video.first() {
+            if self.spectrum || self.tools.decoder == Decoder::Cpu || !self.tools.fallback {
+                return Err(error);
+            }
+            drop(video);
+            self.tools.decoder = Decoder::Cpu;
+            self.fallback_notice = true;
+            video = Video::open(
+                &self.tools,
+                self.path,
+                self.info,
+                (size.0, pixels_high),
+                self.fps,
+                position,
+                self.spectrum,
+            )?;
+            video
+                .first()
+                .with_context(|| format!("GPU: {error:#}; CPU"))?;
+        }
         Ok(video)
     }
 }
@@ -288,8 +324,12 @@ fn play(
     metrics.decoder = selected_tools.decoder.label().to_owned();
     metrics.requested_fps = args.fps;
     metrics.effective_fps = effective_fps;
-    let clip = Clip {
-        tools: &selected_tools,
+    let mut clip = Clip {
+        tools: selected_tools.clone(),
+        fallback_notice: track.video.is_some()
+            && args.hwaccel != Decoder::Cpu
+            && args.hwaccel != Decoder::Auto
+            && selected_tools.decoder == Decoder::Cpu,
         path: track.video.as_deref().unwrap_or(&wav),
         info,
         spectrum: track.video.is_none(),
@@ -401,7 +441,29 @@ fn play(
             dirty = true;
         }
         let decode_start = Instant::now();
-        let changed = video.advance(audio.position())?;
+        let changed = match video.advance(audio.position()) {
+            Ok(changed) => changed,
+            Err(error) if clip.tools.decoder != Decoder::Cpu && clip.tools.fallback => {
+                let paused = audio.sink.is_paused();
+                audio.sink.pause();
+                let position = audio.position();
+                drop(video);
+                clip.tools.decoder = Decoder::Cpu;
+                clip.fallback_notice = true;
+                video = clip
+                    .open(dimensions, settings.mode, position)
+                    .with_context(|| format!("GPU: {error:#}; CPU"))?;
+                if !paused {
+                    audio.sink.play();
+                }
+                dirty = true;
+                true
+            }
+            Err(error) => return Err(error),
+        };
+        if metrics.decoder != clip.tools.decoder.label() {
+            metrics.decoder = clip.tools.decoder.label().to_owned();
+        }
         if let Some(frame) = &video.current {
             metrics.max_video_lag = metrics.max_video_lag.max(audio.position() - frame.time);
         }
@@ -414,15 +476,21 @@ fn play(
             hud_time = Instant::now();
         }
         if changed || dirty || hud_due {
-            let rows = screen_rows(
+            let mut rows = screen_rows(
                 track,
                 &audio,
                 settings,
                 size,
                 dimensions,
                 fps,
-                selected_tools.decoder,
+                clip.tools.decoder,
             );
+            if clip.fallback_notice && rows.len() > 1 {
+                rows[1] = render::clip(
+                    " GPU unavailable; continued on CPU. See --doctor.",
+                    size.0.saturating_sub(1) as usize,
+                );
+            }
             let output = screen.update(rows, size);
             let frame = video.current.as_ref().context("Нет видеокадра")?;
             let origin = (
@@ -524,7 +592,9 @@ fn benchmark_video(args: &Args, path: &Path) -> Result<()> {
         (1..=1000).contains(&width) && (1..=1000).contains(&args.bench_rows),
         "Некорректный размер бенчмарка"
     );
-    let tools = Tools::find(&project_root()?);
+    let mut tools = Tools::find(&project_root()?);
+    tools.device = args.hwaccel_device.clone();
+    tools.fallback = args.hwaccel_fallback;
     let info = tools.probe(path)?;
     let fps = args.fps.min(info.fps.ceil() as u32).max(1);
     let pixels_high = args.bench_rows * if args.mode == Mode::Blocks { 2 } else { 1 };
@@ -587,6 +657,11 @@ fn run() -> Result<()> {
         print!("{}", config::effective(&args)?);
         return Ok(());
     }
+    if args.doctor {
+        let mut tools = Tools::find(&project_root()?);
+        tools.device = args.hwaccel_device.clone();
+        return doctor::run(&tools, args.doctor_video.as_deref());
+    }
     if let Some(path) = &args.benchmark_video {
         return benchmark_video(&args, path);
     }
@@ -599,7 +674,9 @@ fn run() -> Result<()> {
     let root = project_root()?;
     let folder = args.media.clone().unwrap_or_else(|| root.join("media"));
     fs::create_dir_all(&folder)?;
-    let tools = Tools::find(&root);
+    let mut tools = Tools::find(&root);
+    tools.device = args.hwaccel_device.clone();
+    tools.fallback = args.hwaccel_fallback;
     tools.check()?;
     if args.check {
         use rodio::DeviceTrait;

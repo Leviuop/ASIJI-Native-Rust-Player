@@ -9,7 +9,12 @@ fps = 30             # 10..60; also capped by the source video
 width = 0            # 0 = fit terminal, otherwise 40..1000 columns
 mode = "ascii"       # "ascii" or "blocks" (HD half-blocks)
 color = true
-hwaccel = "auto"     # "auto", "cpu", "cuda", "d3d11va" (Windows only)
+hwaccel = "auto"     # "auto", "cpu", "cuda", "d3d11va" (Windows), "vaapi" (Linux)
+hwaccel_fallback = true # Retry on CPU if GPU decoding fails
+# Optional GPU selection; omit for the driver's default device.
+# With an explicit device, select its matching hwaccel backend too.
+# hwaccel_device = "/dev/dri/renderD128" # VAAPI: AMD/Intel on Linux
+# hwaccel_device = "0"                  # CUDA / D3D11VA: adapter index
 
 # Omit media to use the media folder beside the player.
 # Relative paths are relative to this config file, not the working directory.

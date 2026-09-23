@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0
+
+- VAAPI decoding for AMD/Intel on Linux and explicit GPU device selection.
+- CPU recovery on GPU failure, with an optional strict mode.
+- `--doctor` and per-file decoder diagnostics.
+- Per-user Windows/Linux installers that preserve media and settings.
+
 ## 0.4.0
 
 - Add a commented TOML configuration with XDG paths on Linux and AppData on Windows.

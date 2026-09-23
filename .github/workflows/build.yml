@@ -39,15 +39,21 @@ jobs:
         run: cargo test --locked
       - name: Decode, seek, loop and cache integration
         run: cargo test --locked real_decode_seek_loop_and_cache -- --ignored
+      - name: GPU fallback integration
+        run: cargo test --locked unavailable_gpu_falls_back_unless_strict -- --ignored
       - name: Release build
         run: cargo build --release --locked
       - name: Configuration CLI
         run: python scripts/test-config.py
+      - name: Decoder diagnostics
+        run: python scripts/test-doctor.py
       - name: Linux launcher and terminal menu
         if: runner.os == 'Linux'
         run: |
-          bash -n start.sh build.sh
+          bash -n start.sh build.sh install.sh
           python3 scripts/test-menu.py
+      - name: Per-user installer
+        run: python scripts/test-install.py
       - name: Package
         run: python scripts/package.py
       - uses: actions/upload-artifact@v4

@@ -29,11 +29,15 @@ for filename in ("README.md", "LICENSE", "THIRD_PARTY.md", "CHANGELOG.md", "conf
 shutil.copy2(root / "media" / "README.txt", staging / "media" / "README.txt")
 if windows:
     shutil.copy2(root / "start.bat", staging / "start.bat")
+    shutil.copy2(root / "install.bat", staging / "install.bat")
     (staging / "scripts").mkdir()
+    shutil.copy2(root / "scripts" / "install-windows.ps1", staging / "scripts" / "install-windows.ps1")
     shutil.copy2(root / "scripts" / "setup-ffmpeg.ps1", staging / "scripts" / "setup-ffmpeg.ps1")
 else:
     shutil.copy2(root / "start.sh", staging / "start.sh")
     (staging / "start.sh").chmod(0o755)
+    shutil.copy2(root / "install.sh", staging / "install.sh")
+    (staging / "install.sh").chmod(0o755)
     (staging / "bin" / binary).chmod(0o755)
 
 notices = staging / "licenses"

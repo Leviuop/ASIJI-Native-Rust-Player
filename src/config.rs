@@ -22,6 +22,8 @@ struct Config {
     mode: Option<String>,
     color: Option<bool>,
     hwaccel: Option<String>,
+    hwaccel_device: Option<String>,
+    hwaccel_fallback: Option<bool>,
     media: Option<PathBuf>,
 }
 
@@ -143,6 +145,16 @@ fn apply(args: &mut Args, matches: &ArgMatches, path: &Path, contents: &str) -> 
     merge!(width, config.width);
     merge!(mode, mode);
     merge!(hwaccel, decoder);
+    merge!(hwaccel_fallback, config.hwaccel_fallback);
+    if let Some(device) = &config.hwaccel_device {
+        anyhow::ensure!(
+            !device.trim().is_empty(),
+            "hwaccel_device не может быть пустым"
+        );
+    }
+    if !from_cli("hwaccel_device") {
+        args.hwaccel_device = config.hwaccel_device;
+    }
     if !from_cli("mono") && !from_cli("color") {
         if let Some(color) = config.color {
             args.mono = !color;
@@ -174,6 +186,8 @@ pub fn effective(args: &Args) -> Result<String> {
         mode: Some(args.mode.to_possible_value().unwrap().get_name().into()),
         color: Some(!args.mono),
         hwaccel: Some(args.hwaccel.to_possible_value().unwrap().get_name().into()),
+        hwaccel_device: args.hwaccel_device.clone(),
+        hwaccel_fallback: Some(args.hwaccel_fallback),
         media: Some(
             args.media
                 .clone()
@@ -241,6 +255,27 @@ mod tests {
         )
         .unwrap();
         assert_eq!(args.media.unwrap(), dir.path().join("music"));
+    }
+    #[test]
+    fn gpu_config_and_cli_precedence() {
+        let (mut args, matches) = parsed(&[
+            "asiji",
+            "--hwaccel-device",
+            "1",
+            "--hwaccel-fallback",
+            "true",
+        ]);
+        apply(
+            &mut args,
+            &matches,
+            Path::new("config.toml"),
+            "hwaccel='vaapi'\nhwaccel_device='/dev/dri/renderD129'\nhwaccel_fallback=false",
+        )
+        .unwrap();
+        assert_eq!(args.hwaccel, Decoder::Vaapi);
+        assert_eq!(args.hwaccel_device.as_deref(), Some("1"));
+        assert!(args.hwaccel_fallback);
+        assert!(effective(&args).unwrap().contains("hwaccel_device = \"1\""));
     }
     #[test]
     fn creates_example_without_overwriting() {
