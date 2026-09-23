@@ -45,6 +45,8 @@ jobs:
         run: cargo test --locked unavailable_gpu_falls_back_unless_strict -- --ignored
       - name: Release build
         run: cargo build --release --locked
+      - name: Visualizer pixel equivalence and CPU benchmark
+        run: cargo test --release --locked visualizer::tests -- --include-ignored --skip export_visualizer_demo --nocapture
       - name: Configuration CLI
         run: python scripts/test-config.py
       - name: Media import

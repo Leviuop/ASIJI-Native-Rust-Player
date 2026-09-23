@@ -25,7 +25,7 @@ ASCII или HD-полублоки, а аудио без видео — в на�
 |---|---|---|
 | Windows 10/11 x64 | `windows-x86_64.zip` | Распаковать целиком → `start.bat` |
 | Linux x64, glibc 2.35+ | `linux-x86_64.tar.gz` | Распаковать → `./start.sh` |
-| Debian 12+ / Ubuntu 22.04+ | `asiji_0.9.2_amd64.deb` | `sudo apt install ./asiji_0.9.2_amd64.deb` → `asiji` |
+| Debian 12+ / Ubuntu 22.04+ | `asiji_0.9.3_amd64.deb` | `sudo apt install ./asiji_0.9.3_amd64.deb` → `asiji` |
 
 Готовым сборкам **не нужны Rust и Python**. Windows при первом запуске скачает
 недостающий FFmpeg (~109 МБ, проверка SHA-256); права администратора не нужны.

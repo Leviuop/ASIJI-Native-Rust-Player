@@ -4,6 +4,10 @@ use clap::ValueEnum;
 use rustfft::{Fft, FftPlanner, num_complex::Complex32};
 use std::{fs::File, io::BufReader, path::Path, sync::Arc};
 
+#[cfg(test)]
+#[path = "../tests/support/visualizer_reference.rs"]
+mod reference;
+
 const FFT_SIZE: usize = 2048;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -79,6 +83,98 @@ mod tests {
         }
         Ok(())
     }
+    #[test]
+    #[ignore = "CPU benchmark; run with --release --nocapture"]
+    fn benchmark_visualizer() -> Result<()> {
+        use std::{hint::black_box, time::Instant};
+        let dir = tempfile::tempdir()?;
+        let file = dir.path().join("tone.wav");
+        tone(&file, false, false)?;
+        for size in [(160, 90), (500, 280)] {
+            for style in [Style::Bars, Style::Wave, Style::Orbit] {
+                let mut visual = Visualizer::open(
+                    &file,
+                    size,
+                    60,
+                    Options {
+                        style,
+                        ..Options::default()
+                    },
+                )?;
+                visual.advance(0.2)?;
+                for _ in 0..10 {
+                    visual.draw();
+                }
+                let mut samples = Vec::new();
+                let mut reference_samples = Vec::new();
+                for _ in 0..5 {
+                    let started = Instant::now();
+                    for _ in 0..200 {
+                        black_box(&mut visual).draw();
+                        black_box(&visual.current.rgb);
+                    }
+                    samples.push(started.elapsed().as_secs_f64() * 1000.0 / 200.0);
+                    let started = Instant::now();
+                    for _ in 0..200 {
+                        reference::draw(black_box(&mut visual));
+                        black_box(&visual.current.rgb);
+                    }
+                    reference_samples.push(started.elapsed().as_secs_f64() * 1000.0 / 200.0);
+                }
+                println!(
+                    "VISUAL_BENCH {}",
+                    serde_json::json!({"style":format!("{style:?}"), "size":size, "draw_ms":samples, "reference_ms":reference_samples})
+                );
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn pixels_match_reference() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let file = dir.path().join("tone.wav");
+        tone(&file, false, false)?;
+        for size in [(1, 1), (2, 3), (37, 19), (160, 90)] {
+            for style in [Style::Bars, Style::Wave, Style::Orbit] {
+                for (theme, bands, gain, pixel_aspect) in [
+                    (Theme::Aurora, 8, 10, 0.25),
+                    (Theme::Ember, 48, 100, 1.0),
+                    (Theme::Ice, 128, 400, 2.0),
+                ] {
+                    let mut visual = Visualizer::open(
+                        &file,
+                        size,
+                        60,
+                        Options {
+                            style,
+                            theme,
+                            bands,
+                            gain,
+                            pixel_aspect,
+                            ..Options::default()
+                        },
+                    )?;
+                    for frame in 0..4 {
+                        visual.advance(frame as f64 * 0.1)?;
+                        for (i, level) in visual.levels.iter_mut().enumerate() {
+                            *level = ((i * 17 + frame * 11) % 101) as f32 / 100.0;
+                            visual.peaks[i] = (*level + 0.15).min(1.0);
+                        }
+                        visual.draw();
+                        let actual = visual.current.rgb.clone();
+                        reference::draw(&mut visual);
+                        assert_eq!(
+                            actual, visual.current.rgb,
+                            "{style:?} {theme:?} {size:?} frame {frame}"
+                        );
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     #[test]
     fn spectrum_detects_known_frequency() -> Result<()> {
         let dir = tempfile::tempdir()?;
@@ -202,6 +298,8 @@ pub struct Visualizer {
     peaks: Vec<f32>,
     ranges: Vec<(usize, usize)>,
     window: Vec<f32>,
+    orbit_geometry: Vec<(f32, f32)>,
+    wave_columns: Vec<(f32, f32)>,
     pub current: Frame,
 }
 
@@ -233,9 +331,34 @@ impl Visualizer {
                 (low, bin(i + 1).clamp(low + 1, FFT_SIZE / 2))
             })
             .collect();
+        // Geometry stays fixed until resize recreates the visualizer.
+        let orbit_geometry = if options.style == Style::Orbit {
+            let (width, height) = size;
+            (0..width * height)
+                .map(|i| {
+                    let u = (i % width) as f32 / width.max(2) as f32;
+                    let v = (i / width) as f32 / height.max(2) as f32;
+                    let dx = (u - 0.5) * 2.0 * width as f32 / height as f32 * options.pixel_aspect;
+                    let dy = (v - 0.5) * 2.0;
+                    let angle = (dy.atan2(dx) / std::f32::consts::TAU + 1.0) % 1.0;
+                    ((dx * dx + dy * dy).sqrt(), angle)
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
         Ok(Self {
             reader,
             options,
+            orbit_geometry,
+            wave_columns: vec![
+                (0.0, 0.0);
+                if options.style == Style::Wave {
+                    size.0
+                } else {
+                    0
+                }
+            ],
             size,
             fps,
             fft,
@@ -322,6 +445,14 @@ impl Visualizer {
             Theme::Ember => ([255.0, 190.0, 62.0], [255.0, 57.0, 119.0]),
             Theme::Ice => ([100.0, 181.0, 255.0], [222.0, 250.0, 255.0]),
         };
+        for (x, column) in self.wave_columns.iter_mut().enumerate() {
+            let index = x * (FFT_SIZE - 1) / width.max(2);
+            let gain = self.options.gain as f32 / 100.0;
+            *column = (
+                0.32 + (self.left[index] * gain).clamp(-1.0, 1.0) * 0.23,
+                0.70 + (self.right[index] * gain).clamp(-1.0, 1.0) * 0.23,
+            );
+        }
         for y in 0..height {
             for x in 0..width {
                 let u = x as f32 / width.max(2) as f32;
@@ -356,10 +487,7 @@ impl Visualizer {
                         )
                     }
                     Style::Wave => {
-                        let index = x * (FFT_SIZE - 1) / width.max(2);
-                        let gain = self.options.gain as f32 / 100.0;
-                        let a = 0.32 + (self.left[index] * gain).clamp(-1.0, 1.0) * 0.23;
-                        let b = 0.70 + (self.right[index] * gain).clamp(-1.0, 1.0) * 0.23;
+                        let (a, b) = self.wave_columns[x];
                         let distance = (v - a).abs().min((v - b).abs()) * height as f32;
                         (
                             (1.3 - distance).clamp(0.0, 1.0) + (4.0 - distance).max(0.0) * 0.035,
@@ -371,12 +499,8 @@ impl Visualizer {
                         )
                     }
                     Style::Orbit => {
-                        let dx = (u - 0.5) * 2.0 * width as f32 / height as f32
-                            * self.options.pixel_aspect;
-                        let dy = (v - 0.5) * 2.0;
-                        let angle = (dy.atan2(dx) / std::f32::consts::TAU + 1.0) % 1.0;
+                        let (radius, angle) = self.orbit_geometry[y * width + x];
                         let index = (angle * bands as f32) as usize % bands;
-                        let radius = (dx * dx + dy * dy).sqrt();
                         let edge = 0.40 + self.levels[index] * 0.42;
                         let fill = if radius > 0.40 && radius < edge {
                             0.50 + (radius - 0.40)
