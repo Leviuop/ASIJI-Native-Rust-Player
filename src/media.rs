@@ -62,6 +62,11 @@ fn extension(path: &Path) -> String {
         .to_lowercase()
 }
 
+pub fn is_media(path: &Path) -> bool {
+    let ext = extension(path);
+    AUDIO.contains(&ext.as_str()) || VIDEO.contains(&ext.as_str())
+}
+
 pub fn discover(folder: &Path) -> Result<Vec<Track>> {
     let mut groups: BTreeMap<String, Vec<PathBuf>> = BTreeMap::new();
     for item in fs::read_dir(folder).with_context(|| format!("Медиатека: {}", folder.display()))?

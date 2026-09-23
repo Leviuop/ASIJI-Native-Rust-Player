@@ -45,6 +45,8 @@ jobs:
         run: cargo build --release --locked
       - name: Configuration CLI
         run: python scripts/test-config.py
+      - name: Media import
+        run: python scripts/test-import.py
       - name: Decoder diagnostics
         run: python scripts/test-doctor.py
       - name: Linux launcher and terminal menu

@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import pty
 import select
+import shlex
 import signal
 import tempfile
 import time
@@ -12,6 +13,10 @@ import time
 root = Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory() as temporary:
     Path(temporary, "broken.mp4").write_bytes(b"not a video")
+    incoming = Path(temporary, "incoming")
+    incoming.mkdir()
+    dropped = incoming / "Drop with spaces.mp3"
+    dropped.write_bytes(b"import without playback")
     pid, terminal = pty.fork()
     if pid == 0:
         os.execv(str(root / "target/release/asiji"), [
@@ -43,6 +48,10 @@ with tempfile.TemporaryDirectory() as temporary:
             output = read_until(prompt)
             assert b"\x1b[2J" in output and b"\x1b[3J" in output
             assert output.count(b"MUSIC IN CHARACTERS") == 1
+        os.write(terminal, (shlex.quote(str(dropped)) + "\n").encode())
+        output = read_until(prompt)
+        assert "Добавлено:".encode() in output
+        assert Path(temporary, dropped.name).read_bytes() == dropped.read_bytes()
         os.write(terminal, b"1\n")
         output = read_until(prompt)
         clear = output.rfind(b"\x1b[2J")
@@ -58,7 +67,7 @@ with tempfile.TemporaryDirectory() as temporary:
                 break
             time.sleep(0.05)
         assert pid is None, "Menu did not exit"
-        print("Menu refresh, scrollback clearing and error recovery passed.")
+        print("Menu import, refresh, scrollback clearing and error recovery passed.")
     finally:
         os.close(terminal)
         if pid is not None:

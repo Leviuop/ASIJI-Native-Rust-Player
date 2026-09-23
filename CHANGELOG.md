@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0
+
+- Import dropped or pasted audio/video paths from the track menu on Windows and Linux.
+- Preserve originals, paired filenames and existing library files.
+- Support quoted paths, POSIX escapes and local file URIs.
+
 ## 0.5.0
 
 - VAAPI decoding for AMD/Intel on Linux and explicit GPU device selection.

@@ -3,6 +3,7 @@ mod bindings;
 mod canvas;
 mod config;
 mod doctor;
+mod import;
 #[cfg(test)]
 mod integration_tests;
 mod media;
@@ -705,6 +706,7 @@ fn run() -> Result<()> {
     };
     let mut index = args.play.map(|n| n.saturating_sub(1));
     let mut menu_error = None;
+    let mut import_report = None;
     if let Some(number) = args.play {
         anyhow::ensure!(
             number > 0 && number <= media::discover(&folder)?.len(),
@@ -726,6 +728,9 @@ fn run() -> Result<()> {
             if let Some(error) = menu_error.take() {
                 println!("Ошибка: {error}\n");
             }
+            if let Some(report) = import_report.take() {
+                println!("{report}\n");
+            }
             if tracks.is_empty() {
                 println!(
                     "Добавьте Название.mp3 + Название.mp4 или клип со звуком в {}",
@@ -744,7 +749,8 @@ fn run() -> Result<()> {
                     }
                 );
             }
-            print!("\nНомер трека / R — обновить / Q — выход: ");
+            println!("\nПеретащите аудио/видео сюда и нажмите Enter — копия попадёт в медиатеку.");
+            print!("Номер трека / R — обновить / Q — выход: ");
             io::stdout().flush()?;
             let mut input = String::new();
             if io::stdin().read_line(&mut input)? == 0 {
@@ -752,6 +758,32 @@ fn run() -> Result<()> {
             }
             if matches!(input.trim().to_lowercase().as_str(), "q" | "й") {
                 break;
+            }
+            if input.trim().is_empty() || matches!(input.trim().to_lowercase().as_str(), "r" | "к")
+            {
+                continue;
+            }
+            if input.trim().parse::<usize>().is_err() {
+                match import::paths(&input, cfg!(windows)) {
+                    Ok(paths) => {
+                        let mut report = Vec::new();
+                        for path in paths {
+                            let name = safe_text(&path.to_string_lossy());
+                            println!("Добавление: {name}");
+                            io::stdout().flush()?;
+                            report.push(match import::copy(&path, &folder) {
+                                Ok(true) => format!("Добавлено: {name}"),
+                                Ok(false) => format!("Уже в медиатеке: {name}"),
+                                Err(error) => {
+                                    format!("Не добавлено: {}", safe_text(&format!("{error:#}")))
+                                }
+                            });
+                        }
+                        import_report = Some(report.join("\n"));
+                    }
+                    Err(error) => menu_error = Some(safe_text(&format!("{error:#}"))),
+                }
+                continue;
             }
             index = input
                 .trim()
