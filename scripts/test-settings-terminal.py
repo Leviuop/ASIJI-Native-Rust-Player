@@ -20,7 +20,7 @@ with tempfile.TemporaryDirectory(prefix="asiji settings ") as directory:
         terminal.until("< orbit >")
         terminal.send("\x1b[B")
         terminal.until("> Палитра")
-        terminal.send(newline)
+        terminal.send("\r")  # Enter in raw mode; LF is Ctrl+J on Unix.
         terminal.until("< ember >")
         terminal.send("w")
         terminal.until("Q — выход: ")
