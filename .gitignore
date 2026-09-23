@@ -1,0 +1,15 @@
+.venv/
+.cache/
+__pycache__/
+*.pyc
+media/*
+!media/README.txt
+.tools/
+target/
+bin/
+benchmarks/
+.publish/
+dist/
+legacy-python.zip
+SPEC.md
+MIGRATION.md
