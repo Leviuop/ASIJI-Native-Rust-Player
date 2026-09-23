@@ -13,7 +13,6 @@ mod render;
 mod settings_menu;
 mod timing;
 mod visualizer;
-mod wallpaper;
 
 use anyhow::{Context, Result, bail};
 use audio::Audio;
@@ -81,17 +80,6 @@ struct Args {
     visual_smoothing: u8,
     #[arg(long, default_value_t = 48, value_parser = clap::value_parser!(u16).range(8..=128))]
     visual_bands: u16,
-    #[arg(long, default_value_t = false, action = clap::ArgAction::Set, help = "Живые обои рабочего стола")]
-    wallpaper: bool,
-    #[arg(long, value_enum, default_value_t = wallpaper::Backend::Auto)]
-    wallpaper_backend: wallpaper::Backend,
-    #[arg(
-        long,
-        help = "Установить интеграцию Linux-обоев для текущего пользователя"
-    )]
-    wallpaper_setup: bool,
-    #[arg(long, help = "Восстановить фон Plasma после прерванного сеанса ASIJI")]
-    wallpaper_restore: bool,
     #[arg(long)]
     mono: bool,
     #[arg(long)]
@@ -416,11 +404,6 @@ fn play(
             pixel_aspect: 1.0,
         },
     };
-    let mut wallpaper = if args.wallpaper {
-        Some(wallpaper::open(args)?)
-    } else {
-        None
-    };
     let _terminal = Terminal::open()?;
     let _timer = timing::PlaybackTimer::start()?;
     let mut size = terminal::size()?;
@@ -428,18 +411,7 @@ fn play(
         size.0 >= 40 && size.1 >= 12,
         "Увеличьте окно терминала хотя бы до 40×12"
     );
-    let mut dimensions = if args.wallpaper {
-        geometry(
-            info,
-            (
-                (if args.width == 0 { 320 } else { args.width }) as u16 + 1,
-                300,
-            ),
-            args.width,
-        )
-    } else {
-        geometry(info, size, args.width)
-    };
+    let mut dimensions = geometry(info, size, args.width);
     metrics.columns = dimensions.0;
     metrics.rows = dimensions.1;
     let mut video = clip.open(dimensions, settings.mode, 0.0)?;
@@ -502,13 +474,6 @@ fn play(
                     dirty = true;
                 }
                 Event::Resize(w, h) => {
-                    if args.wallpaper {
-                        if w >= 40 && h >= 12 {
-                            size = (w, h);
-                            dirty = true;
-                        }
-                        continue;
-                    }
                     anyhow::ensure!(
                         w >= 40 && h >= 12,
                         "Окно слишком маленькое: увеличьте его и выберите трек снова"
@@ -606,33 +571,13 @@ fn play(
                     size.0.saturating_sub(1) as usize,
                 );
             }
-            if settings.muted && rows.len() > 1 {
-                rows[1] = render::clip(
-                    &format!(
-                        " ЗВУК ВЫКЛЮЧЕН — {}: включить",
-                        settings.bindings.hint("mute")
-                    ),
-                    size.0.saturating_sub(1) as usize,
-                );
-            } else if args.wallpaper && rows.len() > 1 {
-                rows[1] = render::clip(
-                    &format!(
-                        " Живые обои включены. Терминал можно свернуть. {} — убрать обои.",
-                        settings.bindings.hint("menu")
-                    ),
-                    size.0.saturating_sub(1) as usize,
-                );
-            }
             let output = screen.update(rows, size);
             let frame = video.current().context("Нет видеокадра")?;
-            if let Some(wallpaper) = &mut wallpaper {
-                wallpaper.draw(&frame.rgb, dimensions, settings.mode, settings.color)?;
-            }
             let origin = (
                 (size.0.saturating_sub(1) as usize).saturating_sub(dimensions.0) / 2,
                 2 + (size.1.saturating_sub(7) as usize).saturating_sub(dimensions.1) / 2,
             );
-            let image = if wallpaper.is_none() && (changed || dirty) {
+            let image = if changed || dirty {
                 canvas.update(
                     &frame.rgb,
                     dimensions,
@@ -796,9 +741,6 @@ fn run() -> Result<()> {
     if args.print_config {
         print!("{}", config::effective(&args)?);
         return Ok(());
-    }
-    if args.wallpaper_setup || args.wallpaper_restore {
-        return wallpaper::configure(&args);
     }
     if args.clear_cache {
         let path = args

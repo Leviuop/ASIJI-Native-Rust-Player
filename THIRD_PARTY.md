@@ -51,21 +51,6 @@ toolchain terms; this runtime is not MIT-licensed. Linux relies on dynamically
 linked system glibc and ALSA; those libraries are not bundled. See the licensing
 guide for upstream terms.
 
-## Optional Linux desktop components
-
-The Plasma QML plugin and GNOME extension under `linux/` are ASIJI source,
-distributed with the project's MIT notice. Their per-user installation includes
-that notice. The small ASCII pixel masks are project-authored; no font file is
-copied into the package.
-
-Plasma/Qt, GNOME Shell, [mpv](https://mpv.io/),
-[mpvpaper](https://github.com/GhostNaN/mpvpaper) and
-[xwinwrap](https://github.com/mmhobi7/xwinwrap) are optional system components.
-Their source or binaries are not bundled in ASIJI archives. They retain their
-own licenses; ASIJI's MIT license does not cover them. In particular, mpvpaper
-is GPL-3.0. Obtain them through the distribution or their upstream installation
-instructions and preserve their terms when redistributing a combined bundle.
-
 ## FFmpeg
 
 FFmpeg and FFprobe run as separate programs. They are not included in ASIJI

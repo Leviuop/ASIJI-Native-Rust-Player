@@ -41,12 +41,6 @@ with tempfile.TemporaryDirectory() as temporary:
     for option, value in (("--visualizer", "unknown"), ("--visual-theme", "unknown"), ("--visual-gain", "401"), ("--visual-smoothing", "100"), ("--visual-bands", "7")):
         run(option, value, "--print-config", success=False)
     explicit = folder / "portable.toml"
-    default.write_text('wallpaper=true\nwallpaper_backend="plasma"\n', encoding="utf-8")
-    effective = run("--print-config")
-    assert 'wallpaper = true' in effective and 'wallpaper_backend = "plasma"' in effective
-    assert 'wallpaper_backend = "auto"' in run("--wallpaper-backend", "auto", "--print-config")
-    assert 'wallpaper = false' in run("--wallpaper", "false", "--print-config")
-    run("--wallpaper-backend", "unknown", "--print-config", success=False)
     run("--config", str(explicit), "--print-config", success=False)
     run("--config", str(explicit), "--init-config")
     assert "volume = 10" in run("--config", str(explicit), "--print-config")

@@ -89,12 +89,6 @@ const FIELDS: &[(&str, &str, &[&str])] = &[
         "Декодер",
         &["auto", "cpu", "cuda", "d3d11va", "vaapi"],
     ),
-    ("wallpaper", "Живые обои", &["false", "true"]),
-    (
-        "wallpaper_backend",
-        "Обои: система",
-        &["auto", "plasma", "mpvpaper", "x11", "gnome"],
-    ),
 ];
 
 fn adjust(draft: &mut Args, row: usize, direction: i32) -> Result<()> {

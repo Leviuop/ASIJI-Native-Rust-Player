@@ -35,30 +35,6 @@ On Windows the terminal test needs `pywinpty`. For headless Linux, set
 The null output verifies playback logic, not sound quality or physical devices.
 See [hardware validation](docs/HARDWARE.md) for GPU checks.
 
-Wallpaper checks require an interactive Windows Explorer desktop (not headless CI):
-
-```sh
-cargo test --locked desktop_buffer_renders_and_window_is_removed -- --ignored
-python scripts/test-wallpaper.py
-```
-
-Close other ASIJI wallpaper sessions first. The tests briefly create their own
-desktop window and use synthetic audio at zero volume.
-
-Linux desktop checks use isolated HOME/XDG directories, Xvfb and a separate
-D-Bus session; do not run them inside your normal session bus. Install the
-desktop packages listed in the workflow, then run, for example:
-
-```sh
-xvfb-run -a -s '-screen 0 1280x720x24' dbus-run-session -- python3 scripts/test-linux-wallpaper.py plasma
-```
-
-Other scenarios: `gnome`, `mpvpaper`, `x11`. The test captures actual desktop
-pixels before playback, in HD/ASCII and after cleanup, using synthetic audio.
-GNOME needs Shell 45+; the test starts a nested Wayland shell. Plasma 6 is
-also exercised in a Debian 13 CI container. These are software-rendered
-integration checks, not physical GPU/multi-monitor validation.
-
 ## Pull requests
 
 Describe the problem, resulting behavior and checks you ran. Include regression
