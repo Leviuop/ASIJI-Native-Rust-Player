@@ -24,6 +24,8 @@ Rectangle {
         }
     }
     onEndpointChanged: {
+        if (!first || !second)
+            return;
         pendingImage = null;
         first.visible = false;
         second.visible = false;

@@ -34,7 +34,7 @@ def wait_for(check, timeout=40):
         except (OSError, subprocess.SubprocessError, ValueError) as caught:
             error = caught
         time.sleep(0.2)
-    raise AssertionError(f"Desktop not ready: {error}")
+    raise AssertionError(f"Desktop not ready: {error}; output={getattr(error, 'output', '')}")
 
 def spawn(*args):
     log = open(evidence / (kind + "-" + Path(args[0]).name + ".log"), "w")

@@ -1,4 +1,4 @@
-//! A separate, owned desktop child window; the user's wallpaper file is never changed.
+//! Desktop hosts consume the player's rendered frames without a second audio stream.
 #[cfg(not(target_os = "linux"))]
 use crate::render::Mode;
 use anyhow::Result;

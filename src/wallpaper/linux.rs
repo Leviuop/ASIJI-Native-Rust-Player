@@ -348,7 +348,14 @@ fn start_player(backend: Backend, url: &str, fps: u32) -> Result<(Child, fs::Fil
     let parent = std::process::id() as libc::pid_t;
     unsafe {
         command.pre_exec(move || {
-            if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM) != 0 {
+            if libc::prctl(
+                libc::PR_SET_PDEATHSIG,
+                libc::SIGTERM as libc::c_ulong,
+                0 as libc::c_ulong,
+                0 as libc::c_ulong,
+                0 as libc::c_ulong,
+            ) != 0
+            {
                 return Err(std::io::Error::last_os_error());
             }
             if libc::getppid() != parent {
