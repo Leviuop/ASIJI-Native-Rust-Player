@@ -184,6 +184,10 @@ impl Tools {
         );
         let target = cache.join(format!("rust-pcm-{:x}.wav", hasher.finalize()));
         if target.is_file() {
+            fs::OpenOptions::new()
+                .write(true)
+                .open(&target)?
+                .set_modified(std::time::SystemTime::now())?;
             return Ok(target);
         }
         println!("Подготовка звука при первом открытии…");

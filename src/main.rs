@@ -1,5 +1,6 @@
 mod audio;
 mod bindings;
+mod cache;
 mod canvas;
 mod config;
 mod doctor;
@@ -9,6 +10,7 @@ mod integration_tests;
 mod media;
 mod profile;
 mod render;
+mod settings_menu;
 mod timing;
 
 use anyhow::{Context, Result, bail};
@@ -30,7 +32,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[derive(Parser)]
+#[derive(Parser, Clone)]
 #[command(version, about = "ASIJI — нативный ASCII/HD музыкальный плеер")]
 struct Args {
     #[arg(skip)]
@@ -73,6 +75,18 @@ struct Args {
     check: bool,
     #[arg(long, help = "Проверить FFmpeg и GPU без запуска плеера")]
     doctor: bool,
+    #[arg(long, help = "Очистить звуковой кэш и выйти")]
+    clear_cache: bool,
+    #[arg(long)]
+    cache_dir: Option<PathBuf>,
+    #[arg(long, default_value_t = 1024)]
+    cache_max_mb: u64,
+    #[arg(long, default_value_t = 30)]
+    cache_max_days: u64,
+    #[arg(long, value_enum, default_value_t = import::ImportMode::Copy)]
+    import_mode: import::ImportMode,
+    #[arg(long, value_enum, default_value_t = import::Conflict::Skip)]
+    import_conflict: import::Conflict,
     #[arg(
         long,
         requires = "doctor",
@@ -294,7 +308,14 @@ fn play(
     settings: &mut Settings,
 ) -> Result<Action> {
     let mut metrics = profile::Profile::new(args.profile.as_deref());
-    let wav = tools.prepare_audio(&track.audio, &root.join(".cache"))?;
+    let cache_path = args
+        .cache_dir
+        .clone()
+        .unwrap_or_else(|| cache::default_path(root));
+    let cache = cache::Cache::open(&cache_path, args.cache_max_mb, args.cache_max_days)?;
+    cache.prune(None, false)?;
+    let wav = tools.prepare_audio(&track.audio, &cache_path)?;
+    cache.prune(Some(&wav), false)?;
     let audio = Audio::open(&wav, if settings.muted { 0.0 } else { settings.volume })?;
     let info = match &track.video {
         Some(path) => tools.probe(path)?,
@@ -553,6 +574,14 @@ fn project_root() -> Result<PathBuf> {
             return Ok(path.to_owned());
         }
     }
+    if cfg!(target_os = "linux") && exe.starts_with("/usr/") {
+        let base = std::env::var_os("XDG_DATA_HOME")
+            .map(PathBuf::from)
+            .filter(|p| p.is_absolute())
+            .or_else(|| std::env::var_os("HOME").map(|p| PathBuf::from(p).join(".local/share")))
+            .context("Не найден пользовательский каталог данных")?;
+        return Ok(base.join("asiji"));
+    }
     Ok(exe.parent().context("Папка плеера")?.to_owned())
 }
 
@@ -658,6 +687,15 @@ fn run() -> Result<()> {
         print!("{}", config::effective(&args)?);
         return Ok(());
     }
+    if args.clear_cache {
+        let path = args
+            .cache_dir
+            .clone()
+            .unwrap_or_else(|| cache::default_path(&project_root().unwrap_or_default()));
+        let cache = cache::Cache::open(&path, args.cache_max_mb, args.cache_max_days)?;
+        println!("Удалено из кэша: {} байт", cache.prune(None, true)?);
+        return Ok(());
+    }
     if args.doctor {
         let mut tools = Tools::find(&project_root()?);
         tools.device = args.hwaccel_device.clone();
@@ -673,7 +711,7 @@ fn run() -> Result<()> {
         bail!("--width должен быть 0 или 40..1000");
     }
     let root = project_root()?;
-    let folder = args.media.clone().unwrap_or_else(|| root.join("media"));
+    let mut folder = args.media.clone().unwrap_or_else(|| root.join("media"));
     fs::create_dir_all(&folder)?;
     let mut tools = Tools::find(&root);
     tools.device = args.hwaccel_device.clone();
@@ -749,7 +787,11 @@ fn run() -> Result<()> {
                     }
                 );
             }
-            println!("\nПеретащите аудио/видео сюда и нажмите Enter — копия попадёт в медиатеку.");
+            println!(
+                "\nПеретащите аудио/видео сюда и нажмите Enter. Режим: {:?}; конфликт: {:?}",
+                args.import_mode, args.import_conflict
+            );
+            println!("S — настройки / C — очистить кэш");
             print!("Номер трека / R — обновить / Q — выход: ");
             io::stdout().flush()?;
             let mut input = String::new();
@@ -759,6 +801,46 @@ fn run() -> Result<()> {
             if matches!(input.trim().to_lowercase().as_str(), "q" | "й") {
                 break;
             }
+            if input.trim().eq_ignore_ascii_case("s") {
+                args.volume = (settings.volume * 100.0).round() as u8;
+                args.muted = settings.muted;
+                args.repeat = settings.repeat;
+                args.mode = settings.mode;
+                args.mono = !settings.color;
+                match settings_menu::open(&mut args) {
+                    Ok(true) => {
+                        folder = args.media.clone().unwrap_or_else(|| root.join("media"));
+                        fs::create_dir_all(&folder)?;
+                        tools.device = args.hwaccel_device.clone();
+                        tools.fallback = args.hwaccel_fallback;
+                        settings = Settings {
+                            bindings: args.bindings.clone(),
+                            volume: args.volume as f32 / 100.0,
+                            muted: args.muted,
+                            color: !args.mono,
+                            repeat: args.repeat,
+                            mode: args.mode,
+                        };
+                        import_report = Some("Настройки сохранены".into());
+                    }
+                    Ok(false) => (),
+                    Err(error) => menu_error = Some(format!("{error:#}")),
+                }
+                continue;
+            }
+            if input.trim().eq_ignore_ascii_case("c") {
+                let path = args
+                    .cache_dir
+                    .clone()
+                    .unwrap_or_else(|| cache::default_path(&root));
+                match cache::Cache::open(&path, args.cache_max_mb, args.cache_max_days)
+                    .and_then(|c| c.prune(None, true))
+                {
+                    Ok(bytes) => import_report = Some(format!("Кэш очищен: {bytes} байт")),
+                    Err(error) => menu_error = Some(format!("{error:#}")),
+                }
+                continue;
+            }
             if input.trim().is_empty() || matches!(input.trim().to_lowercase().as_str(), "r" | "к")
             {
                 continue;
@@ -766,20 +848,12 @@ fn run() -> Result<()> {
             if input.trim().parse::<usize>().is_err() {
                 match import::paths(&input, cfg!(windows)) {
                     Ok(paths) => {
-                        let mut report = Vec::new();
-                        for path in paths {
-                            let name = safe_text(&path.to_string_lossy());
-                            println!("Добавление: {name}");
-                            io::stdout().flush()?;
-                            report.push(match import::copy(&path, &folder) {
-                                Ok(true) => format!("Добавлено: {name}"),
-                                Ok(false) => format!("Уже в медиатеке: {name}"),
-                                Err(error) => {
-                                    format!("Не добавлено: {}", safe_text(&format!("{error:#}")))
-                                }
-                            });
-                        }
-                        import_report = Some(report.join("\n"));
+                        import_report = Some(import::batch(
+                            paths,
+                            &folder,
+                            args.import_mode,
+                            args.import_conflict,
+                        ));
                     }
                     Err(error) => menu_error = Some(safe_text(&format!("{error:#}"))),
                 }

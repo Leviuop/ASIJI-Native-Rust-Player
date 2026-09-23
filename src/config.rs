@@ -25,6 +25,11 @@ struct Config {
     hwaccel_device: Option<String>,
     hwaccel_fallback: Option<bool>,
     media: Option<PathBuf>,
+    cache_dir: Option<PathBuf>,
+    cache_max_mb: Option<u64>,
+    cache_max_days: Option<u64>,
+    import_mode: Option<String>,
+    import_conflict: Option<String>,
 }
 
 fn location(
@@ -96,6 +101,13 @@ pub fn load(args: &mut Args, matches: &ArgMatches) -> Result<()> {
 
 fn apply(args: &mut Args, matches: &ArgMatches, path: &Path, contents: &str) -> Result<()> {
     let config: Config = toml::from_str(contents.trim_start_matches('\u{feff}'))?;
+    anyhow::ensure!(
+        config
+            .cache_dir
+            .as_ref()
+            .is_none_or(|p| !p.as_os_str().is_empty()),
+        "cache_dir не может быть пустым"
+    );
     if let Some(bindings) = config.bindings {
         args.bindings = crate::bindings::Bindings::new(bindings)?;
     }
@@ -138,6 +150,31 @@ fn apply(args: &mut Args, matches: &ArgMatches, path: &Path, contents: &str) -> 
             }
         };
     }
+    merge!(
+        import_mode,
+        config
+            .import_mode
+            .map(|s| crate::import::ImportMode::from_str(&s, false).map_err(anyhow::Error::msg))
+            .transpose()?
+    );
+    merge!(
+        import_conflict,
+        config
+            .import_conflict
+            .map(|s| crate::import::Conflict::from_str(&s, false).map_err(anyhow::Error::msg))
+            .transpose()?
+    );
+    merge!(cache_max_mb, config.cache_max_mb);
+    merge!(cache_max_days, config.cache_max_days);
+    if !from_cli("cache_dir") {
+        args.cache_dir = config.cache_dir.map(|p| {
+            if p.is_absolute() {
+                p
+            } else {
+                path.parent().unwrap_or(Path::new(".")).join(p)
+            }
+        });
+    }
     merge!(volume, config.volume);
     merge!(muted, config.muted);
     merge!(repeat, config.repeat);
@@ -178,6 +215,27 @@ fn apply(args: &mut Args, matches: &ArgMatches, path: &Path, contents: &str) -> 
 pub fn effective(args: &Args) -> Result<String> {
     let config = Config {
         bindings: Some(args.bindings.names.clone()),
+        import_mode: Some(
+            args.import_mode
+                .to_possible_value()
+                .unwrap()
+                .get_name()
+                .into(),
+        ),
+        import_conflict: Some(
+            args.import_conflict
+                .to_possible_value()
+                .unwrap()
+                .get_name()
+                .into(),
+        ),
+        cache_dir: args
+            .cache_dir
+            .as_ref()
+            .map(std::path::absolute)
+            .transpose()?,
+        cache_max_mb: Some(args.cache_max_mb),
+        cache_max_days: Some(args.cache_max_days),
         volume: Some(args.volume),
         muted: Some(args.muted),
         repeat: Some(args.repeat),
@@ -188,19 +246,113 @@ pub fn effective(args: &Args) -> Result<String> {
         hwaccel: Some(args.hwaccel.to_possible_value().unwrap().get_name().into()),
         hwaccel_device: args.hwaccel_device.clone(),
         hwaccel_fallback: Some(args.hwaccel_fallback),
-        media: Some(
+        media: Some(std::path::absolute(
             args.media
                 .clone()
                 .unwrap_or(crate::project_root()?.join("media")),
-        ),
+        )?),
     };
     Ok(toml::to_string_pretty(&config)?)
+}
+
+pub fn edit(args: &mut Args, key: &str, value: &str) -> Result<()> {
+    use clap::CommandFactory;
+    let mut config: toml::Table = toml::from_str(&effective(args)?)?;
+    if let Some(action) = key.strip_prefix("bind ") {
+        let bindings = config
+            .get_mut("bindings")
+            .and_then(toml::Value::as_table_mut)
+            .context("Бинды")?;
+        bindings.insert(
+            action.into(),
+            toml::Value::Array(
+                value
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(|s| toml::Value::String(s.into()))
+                    .collect(),
+            ),
+        );
+    } else {
+        let parsed = match key {
+            "volume" | "fps" | "width" | "cache_max_mb" | "cache_max_days" => {
+                toml::Value::Integer(value.parse()?)
+            }
+            "color" | "muted" | "repeat" | "hwaccel_fallback" => {
+                toml::Value::Boolean(value.parse()?)
+            }
+            "mode" | "hwaccel" | "hwaccel_device" | "media" | "cache_dir" | "import_mode"
+            | "import_conflict" => toml::Value::String(value.into()),
+            _ => bail!("Неизвестная настройка: {key}"),
+        };
+        if key == "hwaccel_device" && value.is_empty() {
+            config.remove(key);
+        } else {
+            config.insert(key.into(), parsed);
+        }
+    }
+    let matches = Args::command().try_get_matches_from(["asiji"])?;
+    let mut candidate = args.clone();
+    apply(
+        &mut candidate,
+        &matches,
+        &std::env::current_dir()?.join("config.toml"),
+        &toml::to_string(&config)?,
+    )?;
+    *args = candidate;
+    Ok(())
+}
+
+pub fn save(args: &Args) -> Result<PathBuf> {
+    let path = std::path::absolute(
+        args.config
+            .clone()
+            .or_else(default_path)
+            .context("Укажите --config ПУТЬ")?,
+    )?;
+    let parent = path.parent().context("Каталог конфига")?;
+    fs::create_dir_all(parent)?;
+    let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
+    temporary.write_all(effective(args)?.as_bytes())?;
+    temporary.as_file().sync_all()?;
+    if path.exists() {
+        fs::copy(&path, path.with_extension("toml.bak"))?;
+    }
+    temporary.persist(&path).map_err(|e| e.error)?;
+    Ok(path)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use clap::{CommandFactory, FromArgMatches};
+    #[test]
+    fn settings_validate_and_save_with_backup() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut args, _) = parsed(&["asiji"]);
+        args.config = Some(dir.path().join("config.toml"));
+        edit(&mut args, "volume", "37").unwrap();
+        assert!(edit(&mut args, "volume", "101").is_err());
+        assert_eq!(args.volume, 37);
+        edit(&mut args, "bind pause", "k").unwrap();
+        assert!(edit(&mut args, "bind pause", "q").is_err());
+        edit(&mut args, "import_mode", "move").unwrap();
+        save(&args).unwrap();
+        let original = fs::read(args.config.as_ref().unwrap()).unwrap();
+        edit(&mut args, "volume", "10").unwrap();
+        save(&args).unwrap();
+        assert_eq!(
+            fs::read(dir.path().join("config.toml.bak")).unwrap(),
+            original
+        );
+        let (mut loaded, matches) = parsed(&["asiji"]);
+        loaded.config = args.config.clone();
+        load(&mut loaded, &matches).unwrap();
+        assert_eq!(loaded.volume, 10);
+        assert_eq!(loaded.import_mode, crate::import::ImportMode::Move);
+        assert_eq!(loaded.bindings.hint("pause"), "k");
+    }
     fn parsed(cli: &[&str]) -> (Args, ArgMatches) {
         let matches = Args::command().try_get_matches_from(cli).unwrap();
         (Args::from_arg_matches(&matches).unwrap(), matches)

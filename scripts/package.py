@@ -27,6 +27,8 @@ shutil.copy2(Path(metadata["target_directory"]) / "release" / binary, staging / 
 for filename in ("README.md", "LICENSE", "THIRD_PARTY.md", "CHANGELOG.md", "config.example.toml"):
     shutil.copy2(root / filename, staging / filename)
 shutil.copy2(root / "media" / "README.txt", staging / "media" / "README.txt")
+(staging / "docs").mkdir()
+shutil.copy2(root / "docs/HARDWARE.md", staging / "docs/HARDWARE.md")
 if windows:
     shutil.copy2(root / "start.bat", staging / "start.bat")
     shutil.copy2(root / "install.bat", staging / "install.bat")
@@ -34,6 +36,8 @@ if windows:
     shutil.copy2(root / "scripts" / "install-windows.ps1", staging / "scripts" / "install-windows.ps1")
     shutil.copy2(root / "scripts" / "setup-ffmpeg.ps1", staging / "scripts" / "setup-ffmpeg.ps1")
 else:
+    (staging / "scripts").mkdir()
+    shutil.copy2(root / "scripts/test-linux-gpu.sh", staging / "scripts/test-linux-gpu.sh")
     shutil.copy2(root / "start.sh", staging / "start.sh")
     (staging / "start.sh").chmod(0o755)
     shutil.copy2(root / "install.sh", staging / "install.sh")

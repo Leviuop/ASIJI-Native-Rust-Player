@@ -47,23 +47,38 @@ jobs:
         run: python scripts/test-config.py
       - name: Media import
         run: python scripts/test-import.py
+      - name: Settings and cache
+        run: python scripts/test-settings.py
       - name: Decoder diagnostics
         run: python scripts/test-doctor.py
       - name: Linux launcher and terminal menu
         if: runner.os == 'Linux'
         run: |
-          bash -n start.sh build.sh install.sh
+          bash -n start.sh build.sh install.sh scripts/test-linux-gpu.sh
           python3 scripts/test-menu.py
       - name: Per-user installer
         run: python scripts/test-install.py
       - name: Package
         run: python scripts/package.py
+      - name: Debian package
+        if: runner.os == 'Linux'
+        run: |
+          python3 scripts/package-deb.py
+          sudo apt-get install -y ./dist/*.deb
+          env -u XDG_DATA_HOME asiji --no-config --print-config
+          asiji --no-config --doctor
+          printf 'q\n' | env -u XDG_DATA_HOME asiji --no-config
+          test -d "$HOME/.local/share/asiji/media"
+          asiji --no-config --clear-cache
+          sudo apt-get remove -y asiji
+          test -d "$HOME/.local/share/asiji/media"
       - uses: actions/upload-artifact@v4
         with:
           name: asiji-${{ runner.os }}
           path: |
             dist/*.zip
             dist/*.tar.gz
+            dist/*.deb
             dist/*.sha256
           if-no-files-found: error
 

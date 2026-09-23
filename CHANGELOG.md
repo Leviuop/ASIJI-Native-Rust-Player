@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0
+
+- Bounded audio cache with age cleanup, clear command and exclusive usage lock.
+- Import progress, cancellation, move mode and paired conflict renaming.
+- In-player settings and keybind editing, atomic save and config backup.
+- Debian package and writable user data paths for system installations.
+- Optional Linux VAAPI hardware test and documented validation status.
+
+
 ## 0.6.0
 
 - Import dropped or pasted audio/video paths from the track menu on Windows and Linux.
