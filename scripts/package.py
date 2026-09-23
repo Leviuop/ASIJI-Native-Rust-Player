@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tarfile
 import zipfile
 
@@ -43,30 +44,9 @@ else:
     (staging / "install.sh").chmod(0o755)
     (staging / "bin" / binary).chmod(0o755)
 
-notices = staging / "licenses"
-notices.mkdir()
-shutil.copytree(root / "licenses", notices, dirs_exist_ok=True)
-index = []
-sources = staging / "sources"
-sources.mkdir()
-for dependency in metadata["packages"]:
-    if dependency["name"] == "asiji":
-        continue
-    label = f"{dependency['name']}-{dependency['version']}"
-    index.append(f"{label}: {dependency.get('license') or 'see included license'}")
-    folder = Path(dependency["manifest_path"]).parent
-    if "MPL-2.0" in (dependency.get("license") or ""):
-        original = folder.parents[2] / "cache" / folder.parent.name / f"{label}.crate"
-        shutil.copy2(original, sources / original.name)
-    for source in folder.iterdir():
-        if source.name.upper().startswith(("LICENSE", "LICENCE", "COPYING", "NOTICE")):
-            destination = notices / label / source.name
-            destination.parent.mkdir(exist_ok=True)
-            if source.is_dir():
-                shutil.copytree(source, destination)
-            else:
-                shutil.copy2(source, destination)
-(notices / "INDEX.txt").write_text("\n".join(sorted(index)) + "\n", encoding="utf-8")
+target = "x86_64-pc-windows-msvc" if windows else "x86_64-unknown-linux-gnu"
+subprocess.run([sys.executable, str(root / "scripts/license_audit.py"),
+                "--target", target, "--output", str(staging)], check=True)
 
 if windows:
     archive = root / "dist" / f"{name}.zip"

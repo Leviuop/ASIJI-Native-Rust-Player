@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.1
+
+- Include Rust standard-library notices and compiler details in binary packages.
+- Audit the resolved dependency graph for each supported platform before packaging.
+- Block unreviewed license expressions, missing notices and altered MPL source archives.
+- Add machine-readable dependency notices and clarify artwork, FFmpeg and runtime rights.
+- Document redistribution conditions and limits of the licensing review.
+
 ## 0.8.0
 
 - Native audio visualizers: spectrum bars, stereo wave and radial orbit.

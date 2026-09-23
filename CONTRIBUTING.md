@@ -12,6 +12,7 @@ Use stable Rust and FFmpeg. Linux also needs the ALSA development package
 cargo fmt --all -- --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
+python scripts/test-licenses.py
 cargo test --locked real_decode_seek_loop_and_cache -- --ignored
 cargo test --locked unavailable_gpu_falls_back_unless_strict -- --ignored
 cargo build --release --locked
@@ -42,3 +43,9 @@ Changes to options or shortcuts should update the config example and user guide.
 Do not commit personal media, audio caches, binaries, local configuration or
 credentials. Use short synthetic FFmpeg fixtures in tests. Keep third-party
 notices intact. Code contributions are distributed under the project's MIT license.
+
+Submit only material you are entitled to contribute under these terms.
+Identify third-party code and retain its original notices; do not relabel it
+as project-authored code. Review [licensing guidance](docs/LICENSING.md) before
+changing dependencies or release contents. Release packaging requires
+`rustup component add rust-docs` for standard-library notices.
