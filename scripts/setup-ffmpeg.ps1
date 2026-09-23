@@ -19,21 +19,21 @@ if ((Test-Decoder 'ffmpeg') -and (Test-Decoder 'ffprobe')) { exit 0 }
 $version = '9.0.2'
 $expectedHash = '60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba'
 $urls = @(
-    "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-$version-essentials_build.zip",
-    "https://github.com/GyanD/codexffmpeg/releases/download/$version/ffmpeg-$version-essentials_build.zip"
+    "https://github.com/GyanD/codexffmpeg/releases/download/$version/ffmpeg-$version-essentials_build.zip",
+    "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-$version-essentials_build.zip"
 )
 $tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
 $work = Join-Path $tempRoot ('asiji-ffmpeg-' + [Guid]::NewGuid().ToString('N'))
 try {
     New-Item -ItemType Directory -Path $work | Out-Null
     $archive = Join-Path $work 'ffmpeg.zip'
-    Write-Host "Downloading FFmpeg $version from gyan.dev (first launch only)..."
+    Write-Host "Downloading FFmpeg $version by Gyan (first launch only)..."
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $downloaded = $false
     foreach ($url in $urls) {
         try {
             if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
-                & curl.exe --fail --location --silent --show-error --connect-timeout 15 --max-time 180 --output $archive $url
+                & curl.exe --fail --location --silent --show-error --connect-timeout 15 --max-time 180 --speed-limit 1024 --speed-time 20 --output $archive $url
                 if ($LASTEXITCODE -ne 0) { throw "Download failed (curl: $LASTEXITCODE)." }
             } else {
                 Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $archive -TimeoutSec 180
