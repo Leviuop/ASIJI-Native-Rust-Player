@@ -15,7 +15,7 @@ for file in README.md LICENSE THIRD_PARTY.md CHANGELOG.md config.example.toml; d
     install -m 644 -- "$APP_DIR/$file" "$DEST/$file"
 done
 install -m 644 -- "$APP_DIR/media/README.txt" "$DEST/media/README.txt"
-for folder in licenses sources; do
+for folder in licenses sources docs; do
     [[ ! -d "$APP_DIR/$folder" ]] || cp -R -- "$APP_DIR/$folder" "$DEST/"
 done
 if [[ -e "$BIN_DIR/asiji" || -L "$BIN_DIR/asiji" ]]; then
@@ -27,3 +27,8 @@ else
 fi
 printf 'Installed: %s\nRun: %s/asiji\nAdd %s to PATH if needed.\n' "$DEST" "$BIN_DIR" "$BIN_DIR"
 printf 'Install FFmpeg, ALSA and optional VAAPI drivers with your distribution package manager.\n'
+
+if [[ -f "$APP_DIR/scripts/test-linux-gpu.sh" ]]; then
+    mkdir -p -- "$DEST/scripts"
+    install -m 644 -- "$APP_DIR/scripts/test-linux-gpu.sh" "$DEST/scripts/test-linux-gpu.sh"
+fi

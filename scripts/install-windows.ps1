@@ -21,7 +21,7 @@ Copy-Item -LiteralPath (Join-Path $source 'media\README.txt') -Destination (Join
 foreach ($file in @('setup-ffmpeg.ps1', 'install-windows.ps1')) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination (Join-Path $destinationPath "scripts\$file") -Force
 }
-foreach ($folder in @('licenses', 'sources')) {
+foreach ($folder in @('licenses', 'sources', 'docs')) {
     if (Test-Path -LiteralPath (Join-Path $source $folder)) {
         Copy-Item -LiteralPath (Join-Path $source $folder) -Destination $destinationPath -Recurse -Force
     }

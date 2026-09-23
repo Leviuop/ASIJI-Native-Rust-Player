@@ -25,7 +25,7 @@ with tempfile.TemporaryDirectory(prefix="asiji install ") as temporary:
     (destination / "media").mkdir(parents=True)
     (destination / "media/keep.mp4").write_bytes(b"user media")
     (destination / "config.toml").write_text("volume=37")
-    for folder in ("licenses", "sources"):
+    for folder in ("licenses", "sources", "docs"):
         (source / folder).mkdir()
         (source / folder / "notice.txt").write_text("preserve distribution notices")
     environment = dict(os.environ, ASIJI_BIN_DIR=str(links))
@@ -37,7 +37,7 @@ with tempfile.TemporaryDirectory(prefix="asiji install ") as temporary:
     assert (destination / "media/keep.mp4").read_bytes() == b"user media"
     assert (destination / "config.toml").read_text() == "volume=37"
     assert not (destination / "media/private.mp4").exists()
-    for folder in ("licenses", "sources"):
+    for folder in ("licenses", "sources", "docs"):
         assert (destination / folder / "notice.txt").is_file()
     executable = destination / "bin" / binary if windows else links / "asiji"
     result = subprocess.run([str(executable), "--no-config", "--print-config"],

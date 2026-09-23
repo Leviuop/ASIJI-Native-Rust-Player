@@ -266,7 +266,7 @@ FFmpeg, ALSA, для AMD/Intel — драйвер VAAPI. Доступность 
 Для Debian 12+/Ubuntu 22.04+ доступен `.deb` (amd64):
 
 ```bash
-sudo apt install ./asiji_0.7.0_amd64.deb
+sudo apt install ./asiji_0.7.1_amd64.deb
 asiji
 ```
 

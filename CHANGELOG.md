@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.7.0
+## 0.7.1
 
 - Bounded audio cache with age cleanup, clear command and exclusive usage lock.
 - Import progress, cancellation, move mode and paired conflict renaming.

@@ -569,11 +569,6 @@ fn play(
 
 fn project_root() -> Result<PathBuf> {
     let exe = std::env::current_exe()?;
-    for path in exe.ancestors().skip(1) {
-        if path.join("Cargo.toml").is_file() || path.join("media").is_dir() {
-            return Ok(path.to_owned());
-        }
-    }
     if cfg!(target_os = "linux") && exe.starts_with("/usr/") {
         let base = std::env::var_os("XDG_DATA_HOME")
             .map(PathBuf::from)
@@ -581,6 +576,11 @@ fn project_root() -> Result<PathBuf> {
             .or_else(|| std::env::var_os("HOME").map(|p| PathBuf::from(p).join(".local/share")))
             .context("Не найден пользовательский каталог данных")?;
         return Ok(base.join("asiji"));
+    }
+    for path in exe.ancestors().skip(1).filter(|p| p.parent().is_some()) {
+        if path.join("Cargo.toml").is_file() || path.join("media").is_dir() {
+            return Ok(path.to_owned());
+        }
     }
     Ok(exe.parent().context("Папка плеера")?.to_owned())
 }
