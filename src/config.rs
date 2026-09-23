@@ -26,6 +26,7 @@ struct Config {
     visual_smoothing: Option<u8>,
     visual_bands: Option<u16>,
     wallpaper: Option<bool>,
+    wallpaper_backend: Option<String>,
     color: Option<bool>,
     hwaccel: Option<String>,
     hwaccel_device: Option<String>,
@@ -207,6 +208,13 @@ fn apply(args: &mut Args, matches: &ArgMatches, path: &Path, contents: &str) -> 
     merge!(visual_smoothing, config.visual_smoothing);
     merge!(visual_bands, config.visual_bands);
     merge!(wallpaper, config.wallpaper);
+    merge!(
+        wallpaper_backend,
+        config
+            .wallpaper_backend
+            .map(|s| crate::wallpaper::Backend::from_str(&s, false).map_err(anyhow::Error::msg))
+            .transpose()?
+    );
     merge!(volume, config.volume);
     merge!(muted, config.muted);
     merge!(repeat, config.repeat);
@@ -291,6 +299,13 @@ pub fn effective(args: &Args) -> Result<String> {
         visual_smoothing: Some(args.visual_smoothing),
         visual_bands: Some(args.visual_bands),
         wallpaper: Some(args.wallpaper),
+        wallpaper_backend: Some(
+            args.wallpaper_backend
+                .to_possible_value()
+                .unwrap()
+                .get_name()
+                .into(),
+        ),
         mode: Some(args.mode.to_possible_value().unwrap().get_name().into()),
         color: Some(!args.mono),
         hwaccel: Some(args.hwaccel.to_possible_value().unwrap().get_name().into()),
@@ -332,7 +347,9 @@ pub fn edit(args: &mut Args, key: &str, value: &str) -> Result<()> {
                 toml::Value::Boolean(value.parse()?)
             }
             "visualizer" | "visual_theme" | "mode" | "hwaccel" | "hwaccel_device" | "media"
-            | "cache_dir" | "import_mode" | "import_conflict" => toml::Value::String(value.into()),
+            | "cache_dir" | "import_mode" | "import_conflict" | "wallpaper_backend" => {
+                toml::Value::String(value.into())
+            }
             _ => bail!("Неизвестная настройка: {key}"),
         };
         if key == "hwaccel_device" && value.is_empty() {

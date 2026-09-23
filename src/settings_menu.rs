@@ -89,7 +89,12 @@ const FIELDS: &[(&str, &str, &[&str])] = &[
         "Декодер",
         &["auto", "cpu", "cuda", "d3d11va", "vaapi"],
     ),
-    ("wallpaper", "Живые обои (Windows)", &["false", "true"]),
+    ("wallpaper", "Живые обои", &["false", "true"]),
+    (
+        "wallpaper_backend",
+        "Обои: система",
+        &["auto", "plasma", "mpvpaper", "x11", "gnome"],
+    ),
 ];
 
 fn adjust(draft: &mut Args, row: usize, direction: i32) -> Result<()> {
@@ -115,9 +120,6 @@ fn adjust(draft: &mut Args, row: usize, direction: i32) -> Result<()> {
         let index = choices.iter().position(|c| *c == current).unwrap_or(0);
         choices[(index as i32 + direction).rem_euclid(choices.len() as i32) as usize].to_owned()
     };
-    if key == "wallpaper" && next == "true" && !cfg!(windows) {
-        anyhow::bail!("Живые обои пока доступны только в Windows Explorer");
-    }
     config::edit(draft, key, &next)
 }
 

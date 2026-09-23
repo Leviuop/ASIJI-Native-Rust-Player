@@ -2,9 +2,115 @@
 use crate::render::Mode;
 use anyhow::{Result, bail};
 
-#[cfg(not(windows))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum Backend {
+    Auto,
+    Plasma,
+    Mpvpaper,
+    X11,
+    Gnome,
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn select_backend(requested: Backend, desktop: &str, wayland: bool, x11: bool) -> Result<Backend> {
+    anyhow::ensure!(
+        wayland || x11,
+        "Не найден графический сеанс Linux (WAYLAND_DISPLAY / DISPLAY)"
+    );
+    if requested != Backend::Auto {
+        anyhow::ensure!(
+            requested != Backend::X11 || !wayland,
+            "X11 backend нельзя использовать через XWayland; выберите plasma, gnome или mpvpaper"
+        );
+        anyhow::ensure!(
+            requested != Backend::Mpvpaper || wayland,
+            "mpvpaper требует сеанс Wayland с layer-shell"
+        );
+        return Ok(requested);
+    }
+    let desktop = desktop.to_ascii_lowercase();
+    Ok(if desktop.contains("kde") || desktop.contains("plasma") {
+        Backend::Plasma
+    } else if wayland && desktop.contains("gnome") {
+        Backend::Gnome
+    } else if wayland {
+        Backend::Mpvpaper
+    } else {
+        Backend::X11
+    })
+}
+
+#[cfg(any(target_os = "linux", test))]
+mod frame;
+#[cfg(any(target_os = "linux", test))]
+mod stream;
+
+#[cfg(test)]
+mod selection_tests {
+    use super::*;
+    #[test]
+    fn desktop_protocol_and_override_select_the_right_backend() {
+        assert_eq!(
+            select_backend(Backend::Auto, "KDE", true, true).unwrap(),
+            Backend::Plasma
+        );
+        assert_eq!(
+            select_backend(Backend::Auto, "ubuntu:GNOME", true, true).unwrap(),
+            Backend::Gnome
+        );
+        assert_eq!(
+            select_backend(Backend::Auto, "Hyprland", true, true).unwrap(),
+            Backend::Mpvpaper
+        );
+        assert_eq!(
+            select_backend(Backend::Auto, "XFCE", false, true).unwrap(),
+            Backend::X11
+        );
+        assert_eq!(
+            select_backend(Backend::X11, "KDE", false, true).unwrap(),
+            Backend::X11
+        );
+        assert!(select_backend(Backend::Auto, "", false, false).is_err());
+        assert!(select_backend(Backend::X11, "GNOME", true, true).is_err());
+        assert!(select_backend(Backend::Mpvpaper, "", false, true).is_err());
+    }
+}
+
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(target_os = "linux")]
+pub use linux::Wallpaper;
+
+pub fn open(args: &crate::Args) -> Result<Wallpaper> {
+    #[cfg(target_os = "linux")]
+    {
+        linux::Wallpaper::open(args)
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        anyhow::ensure!(
+            args.wallpaper_backend == Backend::Auto,
+            "Этот backend обоев доступен только в Linux; используйте auto"
+        );
+        Wallpaper::open()
+    }
+}
+
+pub fn configure(args: &crate::Args) -> Result<()> {
+    #[cfg(target_os = "linux")]
+    {
+        linux::configure(args)
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = args;
+        bail!("Установка интеграции требуется только в Linux")
+    }
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 pub struct Wallpaper;
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 impl Wallpaper {
     pub fn open() -> Result<Self> {
         bail!(

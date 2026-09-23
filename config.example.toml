@@ -9,7 +9,8 @@ cache_max_days = 30  # Age since last use
 import_mode = "copy" # "copy" or "move" (remove original after successful copy)
 import_conflict = "skip" # "skip" or "rename"; existing files are never overwritten
 muted = false
-wallpaper = false   # Windows Explorer live wallpaper; unsupported on Linux for now
+wallpaper = false   # Live desktop wallpaper; optional Linux desktop integration
+wallpaper_backend = "auto" # auto / plasma / mpvpaper / x11 / gnome; Windows uses auto
 repeat = false
 fps = 30             # 10..60; also capped by the source video
 width = 0            # 0 = fit terminal, otherwise 40..1000 columns

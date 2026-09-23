@@ -81,8 +81,17 @@ struct Args {
     visual_smoothing: u8,
     #[arg(long, default_value_t = 48, value_parser = clap::value_parser!(u16).range(8..=128))]
     visual_bands: u16,
-    #[arg(long, default_value_t = false, action = clap::ArgAction::Set, help = "Живые обои Windows Explorer")]
+    #[arg(long, default_value_t = false, action = clap::ArgAction::Set, help = "Живые обои рабочего стола")]
     wallpaper: bool,
+    #[arg(long, value_enum, default_value_t = wallpaper::Backend::Auto)]
+    wallpaper_backend: wallpaper::Backend,
+    #[arg(
+        long,
+        help = "Установить интеграцию Linux-обоев для текущего пользователя"
+    )]
+    wallpaper_setup: bool,
+    #[arg(long, help = "Восстановить фон Plasma после прерванного сеанса ASIJI")]
+    wallpaper_restore: bool,
     #[arg(long)]
     mono: bool,
     #[arg(long)]
@@ -408,7 +417,7 @@ fn play(
         },
     };
     let mut wallpaper = if args.wallpaper {
-        Some(wallpaper::Wallpaper::open()?)
+        Some(wallpaper::open(args)?)
     } else {
         None
     };
@@ -787,6 +796,9 @@ fn run() -> Result<()> {
     if args.print_config {
         print!("{}", config::effective(&args)?);
         return Ok(());
+    }
+    if args.wallpaper_setup || args.wallpaper_restore {
+        return wallpaper::configure(&args);
     }
     if args.clear_cache {
         let path = args

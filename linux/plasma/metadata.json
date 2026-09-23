@@ -1,0 +1,14 @@
+{
+  "KPackageStructure": "Plasma/Wallpaper",
+  "KPlugin": {
+    "Id": "io.github.Leviuop.asiji",
+    "Name": "ASIJI",
+    "Description": "Live ASCII and audio visuals from the ASIJI player",
+    "Version": "1.0",
+    "License": "MIT",
+    "Authors": [{"Name": "ASIJI contributors"}],
+    "Icon": "applications-multimedia"
+  },
+  "X-Plasma-MainScript": "ui/main.qml",
+  "X-KDE-ParentApp": "org.kde.plasmashell"
+}
