@@ -47,7 +47,7 @@ fn output(command: &mut Command) -> Result<String> {
     let mut child = command
         .stdin(Stdio::null())
         .stdout(file.try_clone()?)
-        .stderr(Stdio::null())
+        .stderr(file.try_clone()?)
         .spawn()?;
     let deadline = Instant::now() + Duration::from_secs(5);
     let status = loop {
@@ -61,14 +61,14 @@ fn output(command: &mut Command) -> Result<String> {
         }
         thread::sleep(Duration::from_millis(20));
     };
-    anyhow::ensure!(
-        status.success(),
-        "Команда рабочего стола завершилась с {status}: {:?}",
-        command.get_program()
-    );
     file.rewind()?;
     let mut text = String::new();
     file.take(65536).read_to_string(&mut text)?;
+    anyhow::ensure!(
+        status.success(),
+        "Команда рабочего стола завершилась с {status}: {}",
+        crate::media::safe_text(&text)
+    );
     Ok(text.trim().to_owned())
 }
 
@@ -132,6 +132,7 @@ fn install_plasma() -> Result<()> {
     let root = data_home()?.join("plasma/wallpapers").join(PLUGIN);
     fs::create_dir_all(root.join("contents/ui"))?;
     fs::create_dir_all(root.join("contents/config"))?;
+    fs::write(root.join("LICENSE"), include_str!("../../LICENSE"))?;
     let mut metadata: serde_json::Value =
         serde_json::from_str(include_str!("../../linux/plasma/metadata.json"))?;
     if major == 6 {
@@ -178,7 +179,7 @@ fn restore_plasma(url: Option<&str>) -> Result<()> {
 
 enum Desktop {
     Plasma(String),
-    Process(Child),
+    Process(Child, fs::File),
     Gnome(PathBuf),
 }
 pub struct Wallpaper {
@@ -225,7 +226,8 @@ impl Wallpaper {
                 Desktop::Plasma(url)
             }
             Backend::Mpvpaper | Backend::X11 => {
-                Desktop::Process(start_player(selected, &url, args.fps)?)
+                let (child, log) = start_player(selected, &url, args.fps)?;
+                Desktop::Process(child, log)
             }
             Backend::Gnome => {
                 install_gnome()?;
@@ -259,10 +261,14 @@ impl Wallpaper {
         mode: Mode,
         color: bool,
     ) -> Result<()> {
-        if let Desktop::Process(child) = &mut self.desktop {
+        if let Desktop::Process(child, log) = &mut self.desktop {
             if let Some(status) = child.try_wait()? {
+                log.rewind()?;
+                let mut message = String::new();
+                log.take(4096).read_to_string(&mut message)?;
                 bail!(
-                    "Программа обоев завершилась ({status}); проверьте backend, сеанс и docs/WALLPAPER.md"
+                    "Программа обоев завершилась ({status}): {}. См. docs/WALLPAPER.md",
+                    crate::media::safe_text(&message)
                 );
             }
         }
@@ -285,7 +291,7 @@ impl Drop for Wallpaper {
             Desktop::Gnome(path) => {
                 let _ = fs::remove_file(path);
             }
-            Desktop::Process(child) => {
+            Desktop::Process(child, _) => {
                 // Each helper owns a fresh process group, including xwinwrap's mpv child.
                 unsafe {
                     libc::kill(-(child.id() as i32), libc::SIGTERM);
@@ -300,7 +306,7 @@ impl Drop for Wallpaper {
     }
 }
 
-fn start_player(backend: Backend, url: &str, fps: u32) -> Result<Child> {
+fn start_player(backend: Backend, url: &str, fps: u32) -> Result<(Child, fs::File)> {
     let options = format!(
         "no-audio no-config no-terminal osc=no cache=no untimed=yes demuxer-lavf-format=bmp_pipe demuxer-lavf-o=framerate={fps} demuxer-lavf-probesize=32 demuxer-lavf-analyzeduration=0.1 demuxer-readahead-secs=0"
     );
@@ -333,19 +339,34 @@ fn start_player(backend: Backend, url: &str, fps: u32) -> Result<Child> {
             .arg(stream);
         c
     };
+    let log = tempfile::tempfile()?;
     command
         .process_group(0)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null());
-    command
+        .stderr(log.try_clone()?);
+    let parent = std::process::id() as libc::pid_t;
+    unsafe {
+        command.pre_exec(move || {
+            if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM) != 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            if libc::getppid() != parent {
+                return Err(std::io::Error::other("ASIJI parent exited"));
+            }
+            Ok(())
+        });
+    }
+    let child = command
         .spawn()
-        .context("Не удалось запустить программу обоев")
+        .context("Не удалось запустить программу обоев")?;
+    Ok((child, log))
 }
 
 fn install_gnome() -> Result<()> {
     let root = data_home()?.join("gnome-shell/extensions").join(GNOME_ID);
     fs::create_dir_all(&root)?;
+    fs::write(root.join("LICENSE"), include_str!("../../LICENSE"))?;
     fs::write(
         root.join("metadata.json"),
         include_str!("../../linux/gnome/metadata.json"),

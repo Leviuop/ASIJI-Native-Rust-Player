@@ -1,6 +1,9 @@
 //! A separate, owned desktop child window; the user's wallpaper file is never changed.
+#[cfg(not(target_os = "linux"))]
 use crate::render::Mode;
-use anyhow::{Result, bail};
+use anyhow::Result;
+#[cfg(not(target_os = "linux"))]
+use anyhow::bail;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub enum Backend {

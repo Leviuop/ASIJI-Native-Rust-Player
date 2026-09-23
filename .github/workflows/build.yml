@@ -95,24 +95,14 @@ jobs:
           if-no-files-found: error
 
   linux-desktops:
-    needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: asiji-Linux
-          path: desktop-package
-      - name: Extract player
-        run: |
-          mkdir -p desktop-release target/release
-          tar -xf desktop-package/*.tar.gz -C desktop-release --strip-components=1
-          cp desktop-release/bin/asiji target/release/asiji
       - name: Desktop test dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends xvfb dbus-x11 openbox plasma-workspace qdbus-qt5 qml-module-qtquick2 qml-module-qtquick-window2 python3-pil ffmpeg x11-utils xdotool gnome-shell sway grim libmpv-dev meson ninja-build libwayland-dev wayland-protocols libegl1-mesa-dev libx11-dev libxext-dev libxrender-dev
+          sudo apt-get install -y --no-install-recommends libasound2-dev pkg-config xvfb dbus-x11 openbox plasma-workspace qdbus-qt5 qml-module-qtquick2 qml-module-qtquick-window2 python3-pil ffmpeg x11-utils xdotool gnome-shell sway grim libmpv-dev meson ninja-build libwayland-dev wayland-protocols libegl1-mesa-dev libx11-dev libxext-dev libxrender-dev
           git clone https://github.com/GhostNaN/mpvpaper.git /tmp/asiji-mpvpaper
           git -C /tmp/asiji-mpvpaper checkout fc5ed285d657c31fbd063b854884ea00e72d2d51
           meson setup /tmp/asiji-mpvpaper/build /tmp/asiji-mpvpaper
@@ -122,6 +112,11 @@ jobs:
           git -C /tmp/asiji-xwinwrap checkout 391519d3bb53e981218de41a37d1f0f95aef3d17
           make -C /tmp/asiji-xwinwrap
           sudo install /tmp/asiji-xwinwrap/xwinwrap /usr/local/bin/xwinwrap
+      - name: Build desktop test player
+        run: |
+          rustup update stable --no-self-update
+          rustup default stable
+          cargo build --release --locked
       - name: Plasma, GNOME, X11 and layer-shell sessions
         env:
           LIBGL_ALWAYS_SOFTWARE: '1'
